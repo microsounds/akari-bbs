@@ -81,7 +81,7 @@ void display(struct resource *res)
 	{
 		char time_str[100];
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
-		strftime(time_str, 100, "%a, %m/%d/%y %H:%M:%S", ts);
+		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
 		fprintf(stdout, "<br/>id: %ld\ndate: %s\ncomment: %s\n",
 					res->arr[i].id, time_str, res->arr[i].text);
 	}
