@@ -6,7 +6,7 @@
 #include "query.h"
 #include "utf8.h"
 
-/* global specifics */
+/* global constants */
 static const char *DBLOC = "db/database.sqlite3";
 const int MAX_LENGTH = 250;
 const int COOLDOWN_SEC = 30;
@@ -101,19 +101,22 @@ void freeup(struct resource *res)
 int post_cooldown(sqlite3 *db, const char *ip_addr)
 {
 	/* post cooldown timer */
-	int timer = COOLDOWN_SEC;
+	long timer = COOLDOWN_SEC;
 	struct resource res;
 	populate(db, &res);
 	int i;
 	for (i = res.count - 1; i >= 0; i--)
 	{
-		if (!strcmp(ip_addr, res.arr[i].ip))
+		long delta = time(NULL) - res.arr[i].time;
+		if (delta > COOLDOWN_SEC)
+			break; /* why waste time? */
+		else if (!strcmp(ip_addr, res.arr[i].ip))
 		{
-			timer = time(NULL) - res.arr[i].time;
-			goto exit;
+			timer = delta;
+			break;
 		}
 	}
-	exit: freeup(&res);
+	freeup(&res);
 	return COOLDOWN_SEC - timer;
 }
 
