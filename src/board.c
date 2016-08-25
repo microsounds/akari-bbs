@@ -9,6 +9,8 @@
 /* global specifics */
 static const char *DBLOC = "db/database.sqlite3";
 const int MAX_LENGTH = 250;
+const int COOLDOWN_SEC = 30;
+const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board.cgi\" "
 				"method=\"post\"><input type=\"text\" name=\"comment\" size=\"50\"maxlength=\"250\">"
 				"<input type=\"submit\" value=\"Submit\"></form><br/>";
@@ -16,6 +18,7 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 struct comment {
 	long id;
 	long time;
+	char *ip;
 	char *text;
 };
 
@@ -35,7 +38,7 @@ char *random_text(unsigned len)
 	return out;
 }
 
-void insert(sqlite3 *db, const char *str)
+void insert(sqlite3 *db, const char *ip, const char *str)
 {
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM comments;", -1, &stmt, NULL);
@@ -43,7 +46,7 @@ void insert(sqlite3 *db, const char *str)
 	unsigned id = sqlite3_column_int(stmt, 0) + 1;
 	sqlite3_finalize(stmt);
 	char *insert = (char *) malloc(sizeof(char) * strlen(str) + 1000); /* good enough */
-	sprintf(insert, "INSERT INTO comments VALUES(%d, %ld,\"%s\");", id, (long) time(NULL), str);
+	sprintf(insert, "INSERT INTO comments VALUES(%d, %ld, \"%s\", \"%s\");", id, (long) time(NULL), ip, str);
 	sqlite3_prepare_v2(db, insert, -1, &stmt, NULL);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
@@ -65,7 +68,8 @@ void populate(sqlite3 *db, struct resource *res)
 		sqlite3_step(stmt);
 		res->arr[i].id = sqlite3_column_int(stmt, 0);
 		res->arr[i].time = sqlite3_column_int(stmt, 1);
-		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 2));
+		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
+		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 3));
 	}
 	sqlite3_finalize(stmt);
 }
@@ -92,6 +96,25 @@ void freeup(struct resource *res)
 			free(res->arr[i].text);
 		free(res->arr);
 	}
+}
+
+int post_cooldown(sqlite3 *db, const char *ip_addr)
+{
+	/* post cooldown timer */
+	int timer = COOLDOWN_SEC;
+	struct resource res;
+	populate(db, &res);
+	int i;
+	for (i = res.count - 1; i >= 0; i--)
+	{
+		if (!strcmp(ip_addr, res.arr[i].ip))
+		{
+			timer = time(NULL) - res.arr[i].time;
+			goto exit;
+		}
+	}
+	exit: freeup(&res);
+	return COOLDOWN_SEC - timer;
 }
 
 int main(int argc, char **argv)
@@ -124,12 +147,18 @@ int main(int argc, char **argv)
 			utf8_rewrite(comment); /* ASCII => UTF-8 */
 			int charcount = utf8_charcount(comment);
 			xss_sanitize(&comment); /* prevent XSS attempts */
-			if (charcount > MAX_LENGTH || charcount < 1)
-				fprintf(stdout, "<h1>Post rejected.<meta http-equiv=\"refresh\" content=\"2\" />");
+
+			char *ip_addr = getenv("REMOTE_ADDR");
+			int timer = post_cooldown(db, ip_addr); /* is this user spamming? */
+
+			if (timer > 0)
+				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
+			else if (charcount > MAX_LENGTH || charcount < 1)
+				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
 			else
 			{
-				insert(db, comment); /* insert */
-				fprintf(stdout, "<h1>Post submitted!</h1><meta http-equiv=\"refresh\" content=\"2\" />");
+				insert(db, ip_addr, comment); /* insert */
+				fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
 			}
 			/* page should refresh shortly */
 		}
