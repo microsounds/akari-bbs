@@ -13,7 +13,7 @@ const int COOLDOWN_SEC = 30;
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board.cgi\" "
 				"method=\"post\"><input type=\"text\" name=\"comment\" size=\"50\"maxlength=\"250\">"
-				"<input type=\"submit\" value=\"Submit\"></form><br/>";
+				"<input type=\"submit\" value=\"Submit\"></form>";
 
 
 /* todo:
@@ -21,7 +21,7 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 	- pages and	offsets
 	- image attachments
 	- CSS
-	- defer post count ID to SQL statement logic and not the total number of entries
+	- rewrite get_offset as a generic numerical option retrieval func
  */
 
 /* generic post containers */
@@ -91,6 +91,7 @@ char *sql_rowcount(const char *str)
 void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
 	/* fetch requested SQL results into memory */
+	/* this automated version is intended for COUNT(*) compatible statements */
 	sqlite3_stmt *stmt;
 	char *row_count = sql_rowcount(sql); /* how many rows? */
 	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
@@ -99,7 +100,6 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
 	sqlite3_finalize(stmt);
 	free(row_count);
-
 	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
@@ -113,11 +113,37 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 	sqlite3_finalize(stmt);
 }
 
+void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
+{
+	/* fetch requested SQL results into memory */
+	/* this manual version is intended for LIMIT/OFFSET statements ONLY */
+	sqlite3_stmt *stmt;
+	res->count = limit; /* user-provided row count */
+	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
+	unsigned i;
+	for (i = 0; i < res->count; i++)
+	{
+		int err = sqlite3_step(stmt);
+		res->arr[i].id = sqlite3_column_int(stmt, 0);
+		res->arr[i].time = sqlite3_column_int(stmt, 1);
+		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
+		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 3));
+		if (err == SQLITE_DONE) /* early exit */
+		{
+			res->count = i;
+			break;
+		}
+	}
+	sqlite3_finalize(stmt);
+}
+
+
 void res_display(struct resource *res)
 {
 	/* print out SQL results stored in memory */
 	int i;
-	for (i = res->count - 1; i >= 0; i--)
+	for (i = 0; i < res->count; i++)
 	{
 		char time_str[100];
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
@@ -136,6 +162,46 @@ void res_freeup(struct resource *res)
 			free(res->arr[i].text);
 		free(res->arr);
 	}
+}
+
+void display_controls(int limit, int offset, int results)
+{
+	/* display controls for the user */
+	fprintf(stdout, "<br />");
+	static const char *link =" <a href=\"board.cgi?offset=%d\">%s</a> ";
+	if (offset - limit >= 0)
+		fprintf(stdout, link, offset - limit, "<< Prev");
+	if (offset > 0)
+		fprintf(stdout, link, 0, "[Back to Top]");
+	if (results == limit)
+		fprintf(stdout, link, offset + limit, "Next >>");
+}
+
+void display_posts(sqlite3 *db, int limit, int offset)
+{
+	/* sanity check */
+	limit = (limit < 0) ? -limit : limit;
+	offset = (offset < 0) ? -offset : offset;
+	if (offset % limit) /* display in multiples of the limit only */
+	{
+		fprintf(stdout, "<h2>Please request offsets in multiples of %d only.</h2>", limit);
+		return;
+	}
+
+	struct resource res;
+	char select[200];
+	static const char *sql = "SELECT * FROM comments ORDER BY id DESC LIMIT %d OFFSET %d;";
+	sprintf(select, sql, limit, offset);
+	res_fetch_specific(db, &res, select, limit);
+	if (!res.count)
+		fprintf(stdout, "<h2>There aren't that many posts here.</h2>");
+	else
+	{
+		display_controls(limit, offset, res.count);
+		res_display(&res);
+		display_controls(limit, offset, res.count);
+	}
+	res_freeup(&res);
 }
 
 int post_cooldown(sqlite3 *db, const char *ip_addr)
@@ -161,7 +227,26 @@ int post_cooldown(sqlite3 *db, const char *ip_addr)
 	return COOLDOWN_SEC - timer;
 }
 
-int main(int argc, char **argv)
+int get_option(const char *get_str, const char *option)
+{
+	/* returns requested numerical option if found */
+	int opt = 0;
+	if (get_str)
+	{
+		char *get = strdup(get_str);
+		query_t query; /* parse GET options */
+		query_parse(&query, get);
+		char *val = query_search(&query, option);
+		if (val)
+			opt = atoi(val);
+		query_free(&query);
+		free(get);
+	}
+	return (opt < 0) ? -opt : opt;
+}
+
+
+int main(void)
 {
 	srand(time(NULL) + clock());
 	sqlite3 *db;
@@ -211,10 +296,9 @@ int main(int argc, char **argv)
 	}
 	else /* no POST */
 	{
-		struct resource res;
-		res_fetch(db, &res, "SELECT * FROM comments;");
-		res_display(&res);
-		res_freeup(&res);
+		/* check GET options for offset value */
+		int offset = get_option(getenv("QUERY_STRING"), "offset");
+		display_posts(db, 50, offset);
 	}
 	sqlite3_close(db);
 	return 0;

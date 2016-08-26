@@ -16,10 +16,15 @@
 
 char *strdup(const char *str)
 {
-	long len = strlen(str);
-	char *dup = (char *) malloc(sizeof(char) * len + 1);
-	strcpy(dup, str);
-	return dup;
+	if (str)
+	{
+		long len = strlen(str);
+		char *dup = (char *) malloc(sizeof(char) * len + 1);
+		strcpy(dup, str);
+		return dup;
+	}
+	else
+		return NULL;
 }
 
 static char hex_value(char c)

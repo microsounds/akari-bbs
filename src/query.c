@@ -2,7 +2,7 @@
 #include <string.h>
 #include "query.h"
 
-/* general purpose POST query+value container */
+/* general purpose query+value container for GET/POST requests */
 
 static void query_deplus(char *str)
 {
@@ -12,6 +12,8 @@ static void query_deplus(char *str)
 
 static unsigned query_count(const char *str)
 {
+	if (!str)
+		return 0;
 	long len = strlen(str);
 	unsigned count = 0;
 	unsigned i;
@@ -31,7 +33,9 @@ static unsigned query_count(const char *str)
 
 void query_parse(query_t *self, char *str)
 {
-	/* create searchable container of query value pairs */
+	/* create searchable container of query value pairs
+	 * strtok destroys input string so make copies
+	 */
 	self->count = query_count(str);
 	if (!self->count) /* if fields empty or incomplete */
 	{
