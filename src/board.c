@@ -15,13 +15,10 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 				"method=\"post\"><input type=\"text\" name=\"comment\" size=\"50\"maxlength=\"250\">"
 				"<input type=\"submit\" value=\"Submit\"></form>";
 
-
 /* todo:
 	- "page generated in 0.00005sec" text
-	- pages and	offsets
 	- image attachments
 	- CSS
-	- rewrite get_offset as a generic numerical option retrieval func
  */
 
 /* generic post containers */
@@ -49,16 +46,23 @@ char *random_text(unsigned len)
 	return out;
 }
 
-void db_insert(sqlite3 *db, struct comment *cm)
+long db_total(sqlite3 *db)
 {
-	/* insert new post into database */
+	long entries = 0;
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db, "SELECT MAX(id) FROM comments;", -1, &stmt, NULL);
 	sqlite3_step(stmt);
-	cm->id = sqlite3_column_int(stmt, 0) + 1;
-	cm->time = time(NULL);
+	entries = sqlite3_column_int(stmt, 0);
 	sqlite3_finalize(stmt);
+	return entries;
+}
 
+void db_insert(sqlite3 *db, struct comment *cm)
+{
+	/* insert new post into database */
+	cm->id = db_total(db) + 1;
+	cm->time = time(NULL);
+	sqlite3_stmt *stmt;
 	char *insert = (char *) malloc(sizeof(char) * strlen(cm->text) + 1000);
 	static const char *sql = "INSERT INTO comments VALUES(%ld, %ld, \"%s\", \"%s\");";
 	sprintf(insert, sql, cm->id, cm->time, cm->ip, cm->text);
@@ -138,7 +142,6 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 	sqlite3_finalize(stmt);
 }
 
-
 void res_display(struct resource *res)
 {
 	/* print out SQL results stored in memory */
@@ -187,7 +190,6 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		fprintf(stdout, "<h2>Please request offsets in multiples of %d only.</h2>", limit);
 		return;
 	}
-
 	struct resource res;
 	char select[200];
 	static const char *sql = "SELECT * FROM comments ORDER BY id DESC LIMIT %d OFFSET %d;";
@@ -197,6 +199,10 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		fprintf(stdout, "<h2>There aren't that many posts here.</h2>");
 	else
 	{
+		long total = db_total(db);
+		long pages = (float) total / limit + 1;
+		long current = (float) offset / limit + 1;
+		fprintf(stdout, "Page %ld of %ld", current, pages);
 		display_controls(limit, offset, res.count);
 		res_display(&res);
 		display_controls(limit, offset, res.count);
