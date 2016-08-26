@@ -19,12 +19,6 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 /* todo:
 	- "page generated in 0.00005sec" text
 	- pages and	offsets
-	- stop dragging the entire database into memory
-	- populate() should take an SQL statement instead
-	- 	eg. cooldown could ask for "SELECT * FROM comments WHERE "time(NULL) - COOLDOWN_SEC" < time;
-	- 	execute it twice to obtain the size to allocate
-	- 	OR, "SELECT COUNT(*) FROM comments WHERE time < 1472096966;"
-	-   write function that forcibly inserts COUNT(*) on * commands;
 	- image attachments
 	- CSS
 	- defer post count ID to SQL statement logic and not the total number of entries
@@ -53,7 +47,23 @@ char *random_text(unsigned len)
 	return out;
 }
 
-char *sql_count(const char *str)
+void db_insert(sqlite3 *db, const char *ip, const char *str)
+{
+	/* insert new post into database */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, "SELECT MAX(id) FROM comments;", -1, &stmt, NULL);
+	sqlite3_step(stmt);
+	unsigned id = sqlite3_column_int(stmt, 0) + 1;
+	sqlite3_finalize(stmt);
+	char *insert = (char *) malloc(sizeof(char) * strlen(str) + 1000); /* good enough? */
+	sprintf(insert, "INSERT INTO comments VALUES(%d, %ld, \"%s\", \"%s\");", id, (long) time(NULL), ip, str);
+	sqlite3_prepare_v2(db, insert, -1, &stmt, NULL);
+	sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	free(insert);
+}
+
+char *sql_rowcount(const char *str)
 {
 	/* rewrites SQL statements to fetch row count instead */
 	static const char *ins = "COUNT(*)";
@@ -73,30 +83,19 @@ char *sql_count(const char *str)
 	return out;
 }
 
-void insert(sqlite3 *db, const char *ip, const char *str)
+void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
+	/* fetch requested SQL results into memory */
 	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM comments;", -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	unsigned id = sqlite3_column_int(stmt, 0) + 1;
-	sqlite3_finalize(stmt);
-	char *insert = (char *) malloc(sizeof(char) * strlen(str) + 1000); /* good enough */
-	sprintf(insert, "INSERT INTO comments VALUES(%d, %ld, \"%s\", \"%s\");", id, (long) time(NULL), ip, str);
-	sqlite3_prepare_v2(db, insert, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	sqlite3_finalize(stmt);
-	free(insert);
-}
-
-void populate(sqlite3 *db, struct resource *res)
-{
-	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM comments;", -1, &stmt, NULL);
+	char *row_count = sql_rowcount(sql); /* how many rows? */
+	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
 	sqlite3_step(stmt);
 	res->count = sqlite3_column_int(stmt, 0);
 	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
 	sqlite3_finalize(stmt);
-	sqlite3_prepare_v2(db, "SELECT * FROM comments;", -1, &stmt, NULL);
+	free(row_count);
+
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
@@ -109,8 +108,9 @@ void populate(sqlite3 *db, struct resource *res)
 	sqlite3_finalize(stmt);
 }
 
-void display(struct resource *res)
+void res_display(struct resource *res)
 {
+	/* print out SQL results stored in memory */
 	int i;
 	for (i = res->count - 1; i >= 0; i--)
 	{
@@ -122,7 +122,7 @@ void display(struct resource *res)
 	}
 }
 
-void freeup(struct resource *res)
+void res_freeup(struct resource *res)
 {
 	if (res->count)
 	{
@@ -137,22 +137,22 @@ int post_cooldown(sqlite3 *db, const char *ip_addr)
 {
 	/* post cooldown timer */
 	const long current_time = time(NULL);
+	const long delta = current_time - COOLDOWN_SEC;
 	long timer = COOLDOWN_SEC;
 	struct resource res;
-	populate(db, &res);
+	char sql[100]; /* fetch newest posts only */
+	sprintf(sql, "SELECT * FROM comments WHERE time > %ld;", delta);
+	res_fetch(db, &res, sql);
 	int i;
 	for (i = res.count - 1; i >= 0; i--)
 	{
-		long delta = current_time - res.arr[i].time;
-		if (delta > COOLDOWN_SEC)
-			break; /* why waste time? */
-		else if (!strcmp(ip_addr, res.arr[i].ip))
+		if (!strcmp(ip_addr, res.arr[i].ip))
 		{
-			timer = delta;
+			timer = current_time - res.arr[i].time;
 			break;
 		}
 	}
-	freeup(&res);
+	res_freeup(&res);
 	return COOLDOWN_SEC - timer;
 }
 
@@ -196,7 +196,7 @@ int main(int argc, char **argv)
 				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
 			else
 			{
-				insert(db, ip_addr, comment); /* insert */
+				db_insert(db, ip_addr, comment); /* insert */
 				fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
 			}
 			/* page should refresh shortly */
@@ -206,9 +206,9 @@ int main(int argc, char **argv)
 	else /* no POST */
 	{
 		struct resource res;
-		populate(db, &res);
-		display(&res);
-		freeup(&res);
+		res_fetch(db, &res, "SELECT * FROM comments;");
+		res_display(&res);
+		res_freeup(&res);
 	}
 	sqlite3_close(db);
 	return 0;
