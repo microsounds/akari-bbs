@@ -24,6 +24,8 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 	- defer post count ID to SQL statement logic and not the total number of entries
  */
 
+/* generic post containers */
+
 struct comment {
 	long id;
 	long time;
@@ -47,16 +49,19 @@ char *random_text(unsigned len)
 	return out;
 }
 
-void db_insert(sqlite3 *db, const char *ip, const char *str)
+void db_insert(sqlite3 *db, struct comment *cm)
 {
 	/* insert new post into database */
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db, "SELECT MAX(id) FROM comments;", -1, &stmt, NULL);
 	sqlite3_step(stmt);
-	unsigned id = sqlite3_column_int(stmt, 0) + 1;
+	cm->id = sqlite3_column_int(stmt, 0) + 1;
+	cm->time = time(NULL);
 	sqlite3_finalize(stmt);
-	char *insert = (char *) malloc(sizeof(char) * strlen(str) + 1000); /* good enough? */
-	sprintf(insert, "INSERT INTO comments VALUES(%d, %ld, \"%s\", \"%s\");", id, (long) time(NULL), ip, str);
+
+	char *insert = (char *) malloc(sizeof(char) * strlen(cm->text) + 1000);
+	static const char *sql = "INSERT INTO comments VALUES(%ld, %ld, \"%s\", \"%s\");";
+	sprintf(insert, sql, cm->id, cm->time, cm->ip, cm->text);
 	sqlite3_prepare_v2(db, insert, -1, &stmt, NULL);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
@@ -135,7 +140,7 @@ void res_freeup(struct resource *res)
 
 int post_cooldown(sqlite3 *db, const char *ip_addr)
 {
-	/* post cooldown timer */
+	/* calculates cooldown timer expressed in seconds remaining */
 	const long current_time = time(NULL);
 	const long delta = current_time - COOLDOWN_SEC;
 	long timer = COOLDOWN_SEC;
@@ -180,15 +185,16 @@ int main(int argc, char **argv)
 		query_t query;
 		query_parse(&query, POST_data);
 		free(POST_data);
-		char *comment = query_search(&query, "comment");
-		if (comment)
-		{
-			utf8_rewrite(comment); /* ASCII => UTF-8 */
-			int charcount = utf8_charcount(comment);
-			xss_sanitize(&comment); /* prevent XSS attempts */
 
-			char *ip_addr = getenv("REMOTE_ADDR");
-			int timer = post_cooldown(db, ip_addr); /* is this user spamming? */
+		struct comment cm; /* compose a new post */
+		cm.text = query_search(&query, "comment");
+		cm.ip = getenv("REMOTE_ADDR");
+		if (cm.text)
+		{
+			utf8_rewrite(cm.text); /* ASCII => UTF-8 */
+			int charcount = utf8_charcount(cm.text);
+			xss_sanitize(&cm.text); /* prevent XSS attempts */
+			int timer = post_cooldown(db, cm.ip); /* is this user spamming? */
 
 			if (timer > 0)
 				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
@@ -196,7 +202,7 @@ int main(int argc, char **argv)
 				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
 			else
 			{
-				db_insert(db, ip_addr, comment); /* insert */
+				db_insert(db, &cm); /* insert */
 				fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
 			}
 			/* page should refresh shortly */
