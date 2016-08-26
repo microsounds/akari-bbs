@@ -15,6 +15,21 @@ const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board
 				"method=\"post\"><input type=\"text\" name=\"comment\" size=\"50\"maxlength=\"250\">"
 				"<input type=\"submit\" value=\"Submit\"></form><br/>";
 
+
+/* todo:
+	- "page generated in 0.00005sec" text
+	- pages and	offsets
+	- stop dragging the entire database into memory
+	- populate() should take an SQL statement instead
+	- 	eg. cooldown could ask for "SELECT * FROM comments WHERE "time(NULL) - COOLDOWN_SEC" < time;
+	- 	execute it twice to obtain the size to allocate
+	- 	OR, "SELECT COUNT(*) FROM comments WHERE time < 1472096966;"
+	-   write function that forcibly inserts COUNT(*) on * commands;
+	- image attachments
+	- CSS
+	- defer post count ID to SQL statement logic and not the total number of entries
+ */
+
 struct comment {
 	long id;
 	long time;
@@ -35,6 +50,26 @@ char *random_text(unsigned len)
 	for (i = 0; i < len; i++)
     	out[i] = lookup[rand() % 53];
 	out[len] = '\0';
+	return out;
+}
+
+char *sql_count(const char *str)
+{
+	/* rewrites SQL statements to fetch row count instead */
+	static const char *ins = "COUNT(*)";
+	char *out = (char *) malloc(sizeof(char) * strlen(str) + strlen(ins) + 1);
+	unsigned i, j = 0;
+	for (i = 0; str[i]; i++)
+	{
+		if (str[i] == '*')
+		{
+			memcpy(&out[j], ins, strlen(ins));
+			j += strlen(ins);
+		}
+		else
+			out[j++] = str[i];
+	}
+	out[j] = '\0';
 	return out;
 }
 
@@ -101,13 +136,14 @@ void freeup(struct resource *res)
 int post_cooldown(sqlite3 *db, const char *ip_addr)
 {
 	/* post cooldown timer */
+	const long current_time = time(NULL);
 	long timer = COOLDOWN_SEC;
 	struct resource res;
 	populate(db, &res);
 	int i;
 	for (i = res.count - 1; i >= 0; i--)
 	{
-		long delta = time(NULL) - res.arr[i].time;
+		long delta = current_time - res.arr[i].time;
 		if (delta > COOLDOWN_SEC)
 			break; /* why waste time? */
 		else if (!strcmp(ip_addr, res.arr[i].ip))
