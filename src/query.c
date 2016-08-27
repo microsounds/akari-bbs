@@ -6,8 +6,9 @@
 
 static void query_deplus(char *str)
 {
-	while (*str++)
+	do
 		if (*str == '+') *str = ' ';
+	while (*++str);
 }
 
 static unsigned query_count(const char *str)
