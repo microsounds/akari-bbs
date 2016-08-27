@@ -19,7 +19,7 @@ const char *postbox = "[!!] Post a comment! (250 char max):"
                       "</form>";
 
 /* todo:
-	- "page generated in 0.00005sec" text
+	- remove leading '+' symbols in comments when adding leading spaces
 	- image attachments
 	- CSS
  */
@@ -247,8 +247,11 @@ int get_option(const char *get_str, const char *option)
 		query_t query; /* parse GET options */
 		query_parse(&query, get);
 		char *val = query_search(&query, option);
-		if (val)
-			opt = atoi(val);
+		char *n = val;
+		while (*++n && val) /* is numerical? */
+			if (*n < '0' || *n > '9')
+				val = NULL;
+		opt = (!val) ? 0 : atoi(val);
 		query_free(&query);
 		free(get);
 	}
