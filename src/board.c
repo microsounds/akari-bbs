@@ -7,13 +7,16 @@
 #include "utf8.h"
 
 /* global constants */
-static const char *DBLOC = "db/database.sqlite3";
 const int MAX_LENGTH = 250;
 const int COOLDOWN_SEC = 30;
+const int POSTS_PER_PAGE = 50;
+const char *database_loc = "db/database.sqlite3";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
-const char *postbox = "[!!] Post a comment! (250 char max): <form action=\"board.cgi\" "
-				"method=\"post\"><input type=\"text\" name=\"comment\" size=\"50\"maxlength=\"250\">"
-				"<input type=\"submit\" value=\"Submit\"></form>";
+const char *postbox = "[!!] Post a comment! (250 char max):"
+                      "<form action=\"board.cgi\" method=\"post\">"
+                      "<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"250\">"
+                      "<input type=\"submit\" value=\"Submit\">"
+                      "</form>";
 
 /* todo:
 	- "page generated in 0.00005sec" text
@@ -48,6 +51,7 @@ char *random_text(unsigned len)
 
 long db_total(sqlite3 *db)
 {
+	/* fetch total entries in database */
 	long entries = 0;
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db, "SELECT MAX(id) FROM comments;", -1, &stmt, NULL);
@@ -171,7 +175,7 @@ void display_controls(int limit, int offset, int results)
 {
 	/* display controls for the user */
 	fprintf(stdout, "<br />");
-	static const char *link =" <a href=\"board.cgi?offset=%d\">%s</a> ";
+	static const char *link =" <a href=\"board.cgi?offset=%d\"><b>%s</b></a> ";
 	if (offset - limit >= 0)
 		fprintf(stdout, link, offset - limit, "<< Prev");
 	if (offset > 0)
@@ -251,14 +255,14 @@ int get_option(const char *get_str, const char *option)
 	return (opt < 0) ? -opt : opt;
 }
 
-
 int main(void)
 {
+	clock_t start = clock();
 	srand(time(NULL) + clock());
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
 	fprintf(stdout, "<meta charset=\"UTF-8\">");
-	if (sqlite3_open_v2(DBLOC, &db, 2, NULL))
+	if (sqlite3_open_v2(database_loc, &db, 2, NULL))
 	{
 		fprintf(stdout, "<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 		return 1;
@@ -304,7 +308,9 @@ int main(void)
 	{
 		/* check GET options for offset value */
 		int offset = get_option(getenv("QUERY_STRING"), "offset");
-		display_posts(db, 50, offset);
+		display_posts(db, POSTS_PER_PAGE, offset);
+		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
+		fprintf(stdout, "<br/><sub>Page generated in %.3fms</sub>", delta);
 	}
 	sqlite3_close(db);
 	return 0;
