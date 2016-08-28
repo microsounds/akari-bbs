@@ -17,7 +17,7 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 const char *header =
 "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
 "<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" /></head>"
-"<body><div class=\"header\"><div id=\"logo\">Akari BBS v0.6</div><div id=\"postbox\">"
+"<body><div class=\"header\"><div id=\"logo\">Akari BBS</div><div id=\"postbox\">"
 "[!!] Post a comment! (250 char max): <form action=\"board.cgi\" method=\"post\">"
 "<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"250\">"
 "<input type=\"submit\" value=\"Submit\"></form></div><div class=\"reset\"></div>";
