@@ -1,0 +1,41 @@
+body
+{
+	font-size: 13px;
+	font-family: san-serif;
+	margin: 7px;
+}
+
+#logo
+{
+	float: left;
+	width: 96px;
+	height: 96px;
+	margin: 2px;
+	font-size:14px;
+	font-family: monospace;
+	background-color: #D6DAF0;
+	background-image: url("http://i.imgur.com/6hH0xH4.png");
+}
+
+#postbox
+{
+	float: left;
+	font-size: 12px;
+	border-left: 6px solid blue;
+	background-color: lightgray;
+	margin: 42px 0px 0px 2px;
+	padding: 7px 15px 12px 10px;
+}
+
+.reset { clear:both; }
+
+/* post structure */
+.posts
+{
+	table-layout: fixed;
+	word-wrap: break-word;
+	width: 1000px;
+}
+.id { width: 50px; }
+.date { width: 165px; }
+

@@ -11,17 +11,20 @@ const int MAX_LENGTH = 250;
 const int COOLDOWN_SEC = 30;
 const int POSTS_PER_PAGE = 50;
 const char *database_loc = "db/database.sqlite3";
+
+/* html */
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
-const char *postbox = "[!!] Post a comment! (250 char max):"
-                      "<form action=\"board.cgi\" method=\"post\">"
-                      "<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"250\">"
-                      "<input type=\"submit\" value=\"Submit\">"
-                      "</form>";
+const char *header =
+"<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
+"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" /></head>"
+"<body><div class=\"header\"><div id=\"logo\">Akari BBS v0.6</div><div id=\"postbox\">"
+"[!!] Post a comment! (250 char max): <form action=\"board.cgi\" method=\"post\">"
+"<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"250\">"
+"<input type=\"submit\" value=\"Submit\"></form></div><div class=\"reset\"></div>";
+const char *footer = "</body></html>";
 
 /* todo:
-	- remove leading '+' symbols in comments when adding leading spaces
 	- image attachments
-	- CSS
  */
 
 /* generic post containers */
@@ -149,15 +152,17 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 void res_display(struct resource *res)
 {
 	/* print out SQL results stored in memory */
+	fprintf(stdout,"<table class=\"posts\">");
 	int i;
 	for (i = 0; i < res->count; i++)
 	{
 		char time_str[100];
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
 		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
-		fprintf(stdout, "<br/>id: %ld\ndate: %s\ncomment: %s\n",
+		fprintf(stdout,"<tr><td class=\"id\">id: %ld</td><td class=\"date\">%s</td><td class=\"comment\">%s</td></tr>",
 					res->arr[i].id, time_str, res->arr[i].text);
 	}
+	fprintf(stdout,"</table>");
 }
 
 void res_freeup(struct resource *res)
@@ -177,11 +182,11 @@ void display_controls(int limit, int offset, int results)
 	fprintf(stdout, "<br />");
 	static const char *link =" <a href=\"board.cgi?offset=%d\"><b>%s</b></a> ";
 	if (offset - limit >= 0)
-		fprintf(stdout, link, offset - limit, "<< Prev");
+		fprintf(stdout, link, offset - limit, "&lt;&lt; Next");
 	if (offset > 0)
 		fprintf(stdout, link, 0, "[Back to Top]");
 	if (results == limit)
-		fprintf(stdout, link, offset + limit, "Next >>");
+		fprintf(stdout, link, offset + limit, "Prev &gt;&gt;");
 }
 
 void display_posts(sqlite3 *db, int limit, int offset)
@@ -206,7 +211,7 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		long total = db_total(db);
 		long pages = (float) total / limit + 1;
 		long current = (float) offset / limit + 1;
-		fprintf(stdout, "Page %ld of %ld", current, pages);
+		fprintf(stdout, "<br/>Page %ld of %ld", current, pages);
 		display_controls(limit, offset, res.count);
 		res_display(&res);
 		display_controls(limit, offset, res.count);
@@ -264,13 +269,12 @@ int main(void)
 	srand(time(NULL) + clock());
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
-	fprintf(stdout, "<meta charset=\"UTF-8\">");
 	if (sqlite3_open_v2(database_loc, &db, 2, NULL))
 	{
 		fprintf(stdout, "<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 		return 1;
 	}
-	fprintf(stdout, "%s", postbox); /* post box */
+	fprintf(stdout, "%s", header); /* header / post box */
 
 	char *is_cgi = getenv("REQUEST_METHOD"); /* is this a CGI environment? */
 	unsigned POST_len = (!is_cgi) ? 0 : atoi(getenv("CONTENT_LENGTH"));
@@ -315,6 +319,7 @@ int main(void)
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
 		fprintf(stdout, "<br/><sub>Page generated in %.3fms</sub>", delta);
 	}
+	fprintf(stdout, "%s", footer);
 	sqlite3_close(db);
 	return 0;
 }
