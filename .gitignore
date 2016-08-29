@@ -1,3 +1,11 @@
+# compiler output
 *.out
 *.cgi
+
+# temporary files
+*.html
+
+# user generated data
+*.sqlite3
+*.db
 db/*

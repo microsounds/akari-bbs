@@ -152,17 +152,17 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 void res_display(struct resource *res)
 {
 	/* print out SQL results stored in memory */
-	fprintf(stdout,"<table class=\"posts\">");
+	static const char *post =
+	"<div class=\"pContainer\"><span class=\"pDate\">%s</span> "
+	"<span class=\"pId\">No. %ld</span><div class=\"pComment\">%s</div></div><br/>";
 	int i;
 	for (i = 0; i < res->count; i++)
 	{
 		char time_str[100];
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
 		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
-		fprintf(stdout,"<tr><td class=\"id\">id: %ld</td><td class=\"date\">%s</td><td class=\"comment\">%s</td></tr>",
-					res->arr[i].id, time_str, res->arr[i].text);
+		fprintf(stdout, post, time_str, res->arr[i].id, res->arr[i].text);
 	}
-	fprintf(stdout,"</table>");
 }
 
 void res_freeup(struct resource *res)
@@ -187,6 +187,7 @@ void display_controls(int limit, int offset, int results)
 		fprintf(stdout, link, 0, "[Back to Top]");
 	if (results == limit)
 		fprintf(stdout, link, offset + limit, "Prev &gt;&gt;");
+	fprintf(stdout, "<br />");
 }
 
 void display_posts(sqlite3 *db, int limit, int offset)
@@ -317,7 +318,7 @@ int main(void)
 		int offset = get_option(getenv("QUERY_STRING"), "offset");
 		display_posts(db, POSTS_PER_PAGE, offset);
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><sub>Page generated in %.3fms</sub>", delta);
+		fprintf(stdout, "<br/><sub>Completed in %.3fms</sub>", delta);
 	}
 	fprintf(stdout, "%s", footer);
 	sqlite3_close(db);

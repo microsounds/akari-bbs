@@ -1,8 +1,10 @@
 body
 {
+	margin: 7px;
 	font-size: 13px;
 	font-family: san-serif;
-	margin: 7px;
+/*	background-color: #D6DAF0; */
+	background-color: #AFD3FF;
 }
 
 #logo
@@ -21,21 +23,29 @@ body
 {
 	float: left;
 	font-size: 12px;
-	border-left: 6px solid blue;
-	background-color: lightgray;
 	margin: 42px 0px 0px 2px;
 	padding: 7px 15px 12px 10px;
+	background-color: lightgray;
+	border-left: 6px solid #B3AFFF;
+	border-bottom: 1px solid #DBAFFF;
+	border-right: 1px solid #DBAFFF;
 }
 
-.reset { clear:both; }
+.reset { clear: both; }
 
 /* post structure */
-.posts
-{
-	table-layout: fixed;
-	word-wrap: break-word;
-	width: 1000px;
-}
-.id { width: 50px; }
-.date { width: 165px; }
 
+.pContainer
+{
+	font-family: sans-serif;
+	word-wrap: break-word;
+	display: inline-block;
+	margin: 2px 0px 2px 6px;
+	padding: 6px 15px 12px 10px;
+	background-color: #B3AFFF;
+	border-bottom: 1px solid #DBAFFF;
+	border-right: 1px solid #DBAFFF;
+}
+
+.pDate, .pId { font-size:13px; }
+.pComment {	font-size: 13px; margin: 16px 4px 5px 16px; }
