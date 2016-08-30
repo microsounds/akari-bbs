@@ -5,5 +5,6 @@ char *strdup(const char *str);
 char *utf8_rewrite(char *str);
 unsigned utf8_charcount(const char *str);
 char *xss_sanitize(char **loc);
+char *futaba_tripcode(const char *pass);
 
 #endif

@@ -3,7 +3,6 @@ body
 	margin: 7px;
 	font-size: 13px;
 	font-family: san-serif;
-/*	background-color: #D6DAF0; */
 	background-color: #AFD3FF;
 }
 
@@ -37,9 +36,11 @@ body
 
 .pContainer
 {
+	font-size: 13px;
 	font-family: sans-serif;
-	word-wrap: break-word;
 	display: inline-block;
+	word-wrap: break-word;
+	word-break: break-word;
 	margin: 2px 0px 2px 6px;
 	padding: 6px 15px 12px 10px;
 	background-color: #B3AFFF;
@@ -47,5 +48,4 @@ body
 	border-right: 1px solid #DBAFFF;
 }
 
-.pDate, .pId { font-size:13px; }
-.pComment {	font-size: 13px; margin: 16px 4px 5px 16px; }
+.pComment { margin: 16px 4px 5px 16px; }

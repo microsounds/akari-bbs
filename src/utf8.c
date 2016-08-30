@@ -1,6 +1,8 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <crypt.h>
 
 /* UTF-8 conversion and input sanitation routines */
 
@@ -92,4 +94,27 @@ char *xss_sanitize(char **loc)
 	}
 	*loc = str;
 	return str;
+}
+
+char *futaba_tripcode(const char *pass)
+{
+	/* creates unsecure futaba tripcodes */
+	static const char *secret = "H.";
+	const char *p = (strlen(pass) < 3) ? NULL : pass; /* too short? */
+	char salt[5]; /* create salt */
+	sprintf(salt, "%c%c%s", (!p) ? 0 : p[1], (!p) ? 0 : p[2], secret);
+	char *s = salt;
+	do /* sanitize salt */
+	{
+		if (*s < '.' || *s > 'z') /* clamp to './0-9A-Za-z' */
+			*s = '.';
+		else if (*s >= ':' && *s <= '@') /* if ':;<=>?@' */
+			*s += 6; /* shift to 'ABCDEF' */
+		else if (*s >= '[' && *s <= '`') /* if '[\]^_`' */
+			*s += 6; /* shift to 'abcdef' */
+	} while (*++s);
+	char *trip = strdup(crypt(pass, salt));
+	memmove(&trip[1], &trip[3], strlen(&trip[3]) + 1);
+	trip[0] = '!';
+	return trip;
 }

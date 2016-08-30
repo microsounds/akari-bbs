@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-O2 -ansi -g -Wall
-LDFLAGS=-lsqlite3
+LDFLAGS=-lcrypt -lsqlite3
 SOURCE=src
 INCLUDES=include
 INPUT=$(wildcard $(SOURCE)/*.c)

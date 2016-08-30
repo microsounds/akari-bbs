@@ -7,7 +7,7 @@
 #include "utf8.h"
 
 /* global constants */
-const int MAX_LENGTH = 250;
+const int MAX_LENGTH = 2000;
 const int COOLDOWN_SEC = 30;
 const int POSTS_PER_PAGE = 50;
 const char *database_loc = "db/database.sqlite3";
@@ -18,8 +18,8 @@ const char *header =
 "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
 "<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" /></head>"
 "<body><div class=\"header\"><div id=\"logo\">Akari BBS</div><div id=\"postbox\">"
-"[!!] Post a comment! (250 char max): <form action=\"board.cgi\" method=\"post\">"
-"<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"250\">"
+"[!!] Post a comment! (limit 2000): <form action=\"board.cgi\" method=\"post\">"
+"<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"2000\">"
 "<input type=\"submit\" value=\"Submit\"></form></div><div class=\"reset\"></div>";
 const char *footer = "</body></html>";
 
@@ -154,7 +154,7 @@ void res_display(struct resource *res)
 	/* print out SQL results stored in memory */
 	static const char *post =
 	"<div class=\"pContainer\"><span class=\"pDate\">%s</span> "
-	"<span class=\"pId\">No. %ld</span><div class=\"pComment\">%s</div></div><br/>";
+	"<span class=\"pId\">No.%ld</span><div class=\"pComment\">%s</div></div><br/>";
 	int i;
 	for (i = 0; i < res->count; i++)
 	{
@@ -318,7 +318,8 @@ int main(void)
 		int offset = get_option(getenv("QUERY_STRING"), "offset");
 		display_posts(db, POSTS_PER_PAGE, offset);
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><sub>Completed in %.3fms</sub>", delta);
+		if (delta)
+			fprintf(stdout, "<br/><sub>Completed in %.3fms</sub>", delta);
 	}
 	fprintf(stdout, "%s", footer);
 	sqlite3_close(db);
