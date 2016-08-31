@@ -7,24 +7,41 @@
 #include "utf8.h"
 
 /* global constants */
-const int MAX_LENGTH = 2000;
+const int NAME_MAX_LENGTH = 100;
+const int COMMENT_MAX_LENGTH = 2000;
 const int COOLDOWN_SEC = 30;
 const int POSTS_PER_PAGE = 50;
+const char *default_name = "Anonymous";
 const char *database_loc = "db/database.sqlite3";
+
+/* software name */
+const char *ident = "akari-bbs";
+const int rev = 8; /* revision no. */
+
 
 /* html */
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 const char *header =
 "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
 "<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" /></head>"
-"<body><div class=\"header\"><div id=\"logo\">Akari BBS</div><div id=\"postbox\">"
-"[!!] Post a comment! (limit 2000): <form action=\"board.cgi\" method=\"post\">"
-"<input type=\"text\" name=\"comment\" size=\"50\" maxlength=\"2000\">"
-"<input type=\"submit\" value=\"Submit\"></form></div><div class=\"reset\"></div>";
+"<body><a href=\"\\\"><div class=\"header\"><div id=\"logo\">Akari BBS</div></a><div id=\"postbox\">"
+"[!!] Post a comment!: <form action=\"board.cgi\" method=\"post\" id=\"postform\">Name (optional):"
+"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"100\" placeholder=\"Anonymous\">"
+"<input type=\"submit\" value=\"Submit\"><br/>"
+"<textarea name=\"comment\" rows=\"3\" cols=\"52\" maxlength=\"2000\" "
+"placeholder=\"2000 characters max.\" form=\"postform\"></textarea></form></div>"
+"<div class=\"reset\"></div>";
 const char *footer = "</body></html>";
 
 /* todo:
+	- rewrite query search to accomodate empty field cases
+	- then you should be able to take empty name= fields without worry
+	- dont forget to split tripcode passwords from string
 	- image attachments
+ */
+
+/* requested features:
+	- email field / sage
  */
 
 /* generic post containers */
@@ -33,6 +50,8 @@ struct comment {
 	long id;
 	long time;
 	char *ip;
+	char *name; /* optional */
+	char *trip; /* optional */
 	char *text;
 };
 
@@ -40,17 +59,6 @@ struct resource {
 	long count;
 	struct comment *arr;
 };
-
-char *random_text(unsigned len)
-{
-	char *lookup = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ";
-	char *out = (char *) malloc(sizeof(char) * len + 1);
-	unsigned i;
-	for (i = 0; i < len; i++)
-    	out[i] = lookup[rand() % 53];
-	out[len] = '\0';
-	return out;
-}
 
 long db_total(sqlite3 *db)
 {
@@ -64,18 +72,38 @@ long db_total(sqlite3 *db)
 	return entries;
 }
 
+int db_transaction(sqlite3 *db, const char *sql)
+{
+	/* execute arbitrary SQL on the database */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	int err = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	return err;
+}
+
 void db_insert(sqlite3 *db, struct comment *cm)
 {
 	/* insert new post into database */
 	cm->id = db_total(db) + 1;
 	cm->time = time(NULL);
-	sqlite3_stmt *stmt;
 	char *insert = (char *) malloc(sizeof(char) * strlen(cm->text) + 1000);
-	static const char *sql = "INSERT INTO comments VALUES(%ld, %ld, \"%s\", \"%s\");";
-	sprintf(insert, sql, cm->id, cm->time, cm->ip, cm->text);
-	sqlite3_prepare_v2(db, insert, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	sqlite3_finalize(stmt);
+	static const char *mandatory =
+	"INSERT INTO comments(id, time, ip, text) VALUES(%ld, %ld, \"%s\", \"%s\");";
+	sprintf(insert, mandatory, cm->id, cm->time, cm->ip, cm->text);
+	db_transaction(db, insert);
+	if (cm->name) /* insert optional fields if any */
+	{
+		const char *name = "UPDATE comments SET name = \"%s\" WHERE id = %ld;";
+		sprintf(insert, name, cm->name, cm->id);
+		db_transaction(db, insert);
+	}
+	if (cm->trip)
+	{
+		const char *trip = "UPDATE comments SET trip = \"%s\" WHERE id = %ld;";
+		sprintf(insert, trip, cm->trip, cm->id);
+		db_transaction(db, insert);
+	}
 	free(insert);
 }
 
@@ -119,7 +147,9 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 		res->arr[i].id = sqlite3_column_int(stmt, 0);
 		res->arr[i].time = sqlite3_column_int(stmt, 1);
 		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
-		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 3));
+		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 3));
+		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 4));
+		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 5));
 	}
 	sqlite3_finalize(stmt);
 }
@@ -139,7 +169,9 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 		res->arr[i].id = sqlite3_column_int(stmt, 0);
 		res->arr[i].time = sqlite3_column_int(stmt, 1);
 		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
-		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 3));
+		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 3));
+		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 4));
+		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 5));
 		if (err == SQLITE_DONE) /* early exit */
 		{
 			res->count = i;
@@ -151,17 +183,23 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 
 void res_display(struct resource *res)
 {
-	/* print out SQL results stored in memory */
-	static const char *post =
-	"<div class=\"pContainer\"><span class=\"pDate\">%s</span> "
-	"<span class=\"pId\">No.%ld</span><div class=\"pComment\">%s</div></div><br/>";
-	int i;
+	/* display SQL resulted stored in memory */
+	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
-		char time_str[100];
+		fprintf(stdout, "<div class=\"pContainer\">");
+		/* use default name if not provided */
+		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
+		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
+		if (res->arr[i].trip) /* optional field */
+			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
+		char time_str[100]; /* human readable date */
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
 		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
-		fprintf(stdout, post, time_str, res->arr[i].id, res->arr[i].text);
+		fprintf(stdout, "<span class=\"pDate\">%s</span> ", time_str);
+		fprintf(stdout, "<span class=\"pId\">No.%ld</span>", res->arr[i].id);
+		fprintf(stdout, "<div class=\"pComment\">%s</div>", res->arr[i].text);
+		fprintf(stdout, "</div><br/>");
 	}
 }
 
@@ -171,7 +209,14 @@ void res_freeup(struct resource *res)
 	{
 		unsigned i;
 		for (i = 0; i < res->count; i++)
+		{
+			if (res->arr[i].name)
+				free(res->arr[i].name);
+			if (res->arr[i].trip)
+				free(res->arr[i].trip);
+			free(res->arr[i].ip);
 			free(res->arr[i].text);
+		}
 		free(res->arr);
 	}
 }
@@ -267,7 +312,6 @@ int get_option(const char *get_str, const char *option)
 int main(void)
 {
 	clock_t start = clock();
-	srand(time(NULL) + clock());
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
 	if (sqlite3_open_v2(database_loc, &db, 2, NULL))
@@ -285,23 +329,36 @@ int main(void)
 		char *POST_data = (char *) malloc(sizeof(char) * POST_len + 1);
 		fread(POST_data, POST_len, 1, stdin);
 		POST_data[POST_len] = '\0';
+
 		query_t query;
 		query_parse(&query, POST_data);
 		free(POST_data);
 
+		/* note:
+		 * cm strings stored in query container
+		 * or as static data, do not free them
+		 */
 		struct comment cm; /* compose a new post */
-		cm.text = query_search(&query, "comment");
+		cm.name = query_search(&query, "name"); /* name and/or tripcode */
+		if (cm.name)
+			utf8_rewrite(cm.name);
+		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
+		cm.text = query_search(&query, "comment"); /* comment body */
+		if (cm.text)
+			utf8_rewrite(cm.text);
 		cm.ip = getenv("REMOTE_ADDR");
 		if (cm.text)
 		{
-			utf8_rewrite(cm.text); /* ASCII => UTF-8 */
-			int charcount = utf8_charcount(cm.text);
-			xss_sanitize(&cm.text); /* prevent XSS attempts */
+			int name_count = (!cm.name) ? 0 : utf8_charcount(cm.name);
+			int text_count = utf8_charcount(cm.text);
+			if (cm.name) /* prevent XSS attempts */
+				xss_sanitize(&cm.name);
+			xss_sanitize(&cm.text);
 			int timer = post_cooldown(db, cm.ip); /* is this user spamming? */
 
 			if (timer > 0)
 				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
-			else if (charcount > MAX_LENGTH || charcount < 1)
+			else if (name_count > NAME_MAX_LENGTH || text_count > COMMENT_MAX_LENGTH || text_count < 1)
 				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
 			else
 			{
@@ -310,6 +367,8 @@ int main(void)
 			}
 			/* page should refresh shortly */
 		}
+		else
+			fprintf(stdout, "<h1>You cannot post a blank comment.</h1>%s", refresh);
 		query_free(&query);
 	}
 	else /* no POST */
@@ -318,8 +377,8 @@ int main(void)
 		int offset = get_option(getenv("QUERY_STRING"), "offset");
 		display_posts(db, POSTS_PER_PAGE, offset);
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		if (delta)
-			fprintf(stdout, "<br/><sub>Completed in %.3fms</sub>", delta);
+		fprintf(stdout, "<br/><sub>%s rev. %d</sub> ", ident, rev);
+		if (delta) fprintf(stdout, "<sub>-- completed in %.3fms</sub>", delta);
 	}
 	fprintf(stdout, "%s", footer);
 	sqlite3_close(db);

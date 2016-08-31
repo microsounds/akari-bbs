@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <crypt.h>
 
-/* UTF-8 conversion and input sanitation routines */
+/* UTF-8 conversion, input sanitation, tripcode routines */
 
 /*
  * UTF-8 encoding
@@ -96,13 +96,40 @@ char *xss_sanitize(char **loc)
 	return str;
 }
 
-char *futaba_tripcode(const char *pass)
+char *tripcode_pass(char **nameptr)
 {
-	/* creates unsecure futaba tripcodes */
+	/* splits 'name#pass' string with '\0'
+	 * returns a pointer to tripcode password if exists
+	 */
+	char *name = *nameptr;
+	int len = strlen(name);
+	int i, found = 0;
+	for (i = len - 1; i >= 0; i--)
+	{
+		if (name[i] == '#' && &name[i+1] != NULL)
+		{
+			found = !found;
+			name[i] = '\0';
+			break;
+		}
+	}
+	/* edge case: no name and only password */
+	if (name[0] == '#' && found)
+		*nameptr = NULL; /* invalidate name pointer */
+	return (found) ? &name[i+1] : NULL;
+}
+
+char *tripcode_hash(const char *pass)
+{
+	/* creates unsecure futaba tripcodes
+	 * this function returns pointer to static data
+	 * overwritten on every call and is NOT THREAD SAFE
+	 */
+	if (!pass) return NULL;
 	static const char *secret = "H.";
 	const char *p = (strlen(pass) < 3) ? NULL : pass; /* too short? */
 	char salt[5]; /* create salt */
-	sprintf(salt, "%c%c%s", (!p) ? 0 : p[1], (!p) ? 0 : p[2], secret);
+	sprintf(salt, "%c%c%s", (!p) ? ' ' : p[1], (!p) ? ' ' : p[2], secret);
 	char *s = salt;
 	do /* sanitize salt */
 	{
@@ -113,7 +140,7 @@ char *futaba_tripcode(const char *pass)
 		else if (*s >= '[' && *s <= '`') /* if '[\]^_`' */
 			*s += 6; /* shift to 'abcdef' */
 	} while (*++s);
-	char *trip = strdup(crypt(pass, salt));
+	char *trip = crypt(pass, salt);
 	memmove(&trip[1], &trip[3], strlen(&trip[3]) + 1);
 	trip[0] = '!';
 	return trip;

@@ -4,61 +4,79 @@
 
 /* general purpose query+value container for GET/POST requests */
 
-static void query_deplus(char *str)
+static void query_stripplus(char *str)
 {
+	/* strip '+' space delimiters */
 	do
 		if (*str == '+') *str = ' ';
 	while (*++str);
 }
 
+static void query_stripwhitespace(char *str)
+{
+	/* strip trailing spaces and/or newlines */
+	int len = strlen(str);
+	int i;
+	for (i = len - 1; i >= 0; i--)
+	{
+		if (str[i] == ' ' || str[i] == '\n')
+			str[i] = '\0';
+		else
+			break;
+	}
+}
+
 static unsigned query_count(const char *str)
 {
-	if (!str)
-		return 0;
-	long len = strlen(str);
+	/* name=&comment=ok */
 	unsigned count = 0;
-	unsigned i;
-	for (i = 1; i < len; i++)
+	if (str)
 	{
-		if (str[i] == '&')
-		{
-			if (str[i - 1] == '=') /* empty/incomplete fields */
-				return 0;
-			else
-				count++;
-		}
+		do
+			if (*str == '=') count++;
+		while (*++str);
 	}
-	/* field1=&field2=&field3= */
-	return (str[len - 1] == '=') ? 0 : count + 1;
+	return (!count) ? 0 : count;
 }
 
 void query_parse(query_t *self, char *str)
 {
-	/* create searchable container of query value pairs
+	/* create searchable container of field+value pairs
 	 * strtok destroys input string so make copies
 	 */
 	self->count = query_count(str);
-	if (!self->count) /* if fields empty or incomplete */
+	if (!self->count) /* null string maybe? */
 	{
 		self->queries = NULL;
 		return;
 	}
 	self->queries = (struct q_pair *) malloc(sizeof(struct q_pair) * self->count);
-	char *tok = strtok(str, "&="); /* alternating field + value pairs */
-	unsigned i = 0, j = 0; /* indices */
-	while (tok != NULL)
+	char *tok = strtok(str, "&"); /* tokenize field + value pairs */
+	unsigned i;
+	for (i = 0; tok != NULL; i++)
 	{
+		query_stripplus(tok);
+		query_stripwhitespace(tok);
 		unsigned len = strlen(tok);
-		char *ptr = (char *) malloc(sizeof(char) * len + 1);
-		if (i % 2)
-			self->queries[j].value = ptr;
-		else
-			self->queries[j].field = ptr;
-		strcpy(ptr, tok);
-		ptr[len] = '\0';
-		query_deplus(ptr);
-		tok = strtok(NULL, "&=");
-		j += (i++ % 2); /* increment j every 2 iterations of i */
+		if (tok[len-1] == '=') /* field has no value */
+		{
+			tok[len-1] = '\0'; /* truncate field name */
+			self->queries[i].field = (char *) malloc(sizeof(char) * len);
+			strcpy(self->queries[i].field, tok);
+			self->queries[i].value = NULL;
+		}
+		else /* field has value */
+		{
+			unsigned j; /* find split point */
+			for (j = 0; j < len; j++)
+				if (tok[j] == '=') break;
+			self->queries[i].field = (char *) malloc(sizeof(char) * j + 1);
+			strncpy(self->queries[i].field, tok, j); /* copy first j bytes to field */
+			self->queries[i].field[j+1] = '\0';
+			self->queries[i].value = (char *) malloc(sizeof(char) * strlen(&tok[j+1]) + 1);
+			strcpy(self->queries[i].value, &tok[j+1]); /* copy the rest to value */
+		}
+		tok = strtok(NULL, "&");
 	}
 }
 
@@ -85,7 +103,8 @@ void query_free(query_t *self)
 		for (i = 0; i < self->count; i++)
 		{
 			free(self->queries[i].field);
-			free(self->queries[i].value);
+			if (self->queries[i].value)
+				free(self->queries[i].value);
 		}
 		if (self->queries)
 			free(self->queries);
