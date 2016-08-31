@@ -12,8 +12,10 @@ body
 	width: 96px;
 	height: 96px;
 	margin: 2px;
-	font-size:14px;
-	font-family: monospace;
+	color: #646;
+	font-size:18px;
+	font-family: sans-serif;
+	font-style: italic;
 	background-color: #D6DAF0;
 	background-image: url("http://i.imgur.com/6hH0xH4.png");
 }
@@ -21,13 +23,21 @@ body
 #postbox
 {
 	float: left;
+	color: #646464;
 	font-size: 12px;
-	margin: 42px 0px 0px 2px;
+	margin: 2px;
 	padding: 7px 15px 12px 10px;
 	background-color: lightgray;
 	border-left: 6px solid #B3AFFF;
 	border-bottom: 1px solid #DBAFFF;
 	border-right: 1px solid #DBAFFF;
+	box-shadow: 3px 3px 7px 0px gray;
+}
+
+textarea, input
+{
+	color: #646464;
+	font-family: sans-serif;
 }
 
 .reset { clear: both; }
@@ -40,12 +50,15 @@ body
 	font-family: sans-serif;
 	display: inline-block;
 	word-wrap: break-word;
-	word-break: break-word;
-	margin: 2px 0px 2px 6px;
+	word-break: break-word; /* possibly broken in Mozilla Firefox 45+ */
+	margin: 4px 10px 4px 6px;
 	padding: 6px 15px 12px 10px;
 	background-color: #B3AFFF;
-	border-bottom: 1px solid #DBAFFF;
-	border-right: 1px solid #DBAFFF;
+	border-bottom: 1px solid #DBBFFF;
+	border-right: 1px solid #DBBFFF;
+	box-shadow: 3px 3px 5px 0px #DBAFFF;
 }
 
+.pName { color: green; font-weight: bold; }
+.pTrip { color: green; }
 .pComment { margin: 16px 4px 5px 16px; }
