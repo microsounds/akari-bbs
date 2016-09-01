@@ -4,7 +4,9 @@
 #include <limits.h>
 #include <crypt.h>
 
-/* UTF-8 conversion, input sanitation, tripcode routines */
+/* utf8.c
+ * UTF-8 conversion, input sanitation, syntactic sugar, tripcode routines
+ */
 
 /*
  * UTF-8 encoding
@@ -59,7 +61,7 @@ char *utf8_rewrite(char *str)
 
 unsigned utf8_charcount(const char *str)
 {
-	/* counts significant character bytes in in UTF-8 strings */
+	/* counts significant character bytes in UTF-8 strings */
 	unsigned count = 0;
 	while (*str++)
 		if ((*str & 0xC0) != 0x80) count++;
@@ -95,6 +97,13 @@ char *xss_sanitize(char **loc)
 	*loc = str;
 	return str;
 }
+
+/* TODO:
+	- >>9829 post linking
+	- do not allow more than 2 newlines unless in a [code] tag
+	- retain newline breaks in comment body
+ */
+
 
 char *tripcode_pass(char **nameptr)
 {

@@ -2,7 +2,9 @@
 #include <string.h>
 #include "query.h"
 
-/* general purpose query+value container for GET/POST requests */
+/* query.c
+ * general purpose GET/POST query+value tokenization and search
+ */
 
 static void query_stripplus(char *str)
 {

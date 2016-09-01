@@ -7,7 +7,7 @@
 #include "utf8.h"
 
 /* global constants */
-const int NAME_MAX_LENGTH = 100;
+const int NAME_MAX_LENGTH = 75;
 const int COMMENT_MAX_LENGTH = 2000;
 const int COOLDOWN_SEC = 30;
 const int POSTS_PER_PAGE = 50;
@@ -18,30 +18,37 @@ const char *database_loc = "db/database.sqlite3";
 const char *ident = "akari-bbs";
 const int rev = 8; /* revision no. */
 
-
 /* html */
+
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 const char *header =
 "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
-"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" /></head>"
+"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
+"<script src=\"js/script.js\"></script></head>"
 "<body><a href=\"\\\"><div class=\"header\"><div id=\"logo\">Akari BBS</div></a><div id=\"postbox\">"
 "[!!] Post a comment!: <form action=\"board.cgi\" method=\"post\" id=\"postform\">Name (optional):"
-"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"100\" placeholder=\"Anonymous\">"
+"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"75\" placeholder=\"Anonymous\">"
 "<input type=\"submit\" value=\"Submit\"><br/>"
-"<textarea name=\"comment\" rows=\"3\" cols=\"52\" maxlength=\"2000\" "
+"<textarea id=\"pBox\" name=\"comment\" rows=\"3\" cols=\"52\" maxlength=\"2000\" "
 "placeholder=\"2000 characters max.\" form=\"postform\"></textarea></form></div>"
 "<div class=\"reset\"></div>";
 const char *footer = "</body></html>";
 
 /* todo:
-	- rewrite query search to accomodate empty field cases
-	- then you should be able to take empty name= fields without worry
-	- dont forget to split tripcode passwords from string
-	- image attachments
+	- >>9829 post linking
+	- do not allow more than 2 newlines unless in a [code] tag
+	- retain newline breaks in comment body
+	- change offset= to page=
+	- calculate page location based on post number
+	- greentexting
+	- code tags
+	- spoiler tags maybe?
+	- auto-updating (javascript?)
  */
 
 /* requested features:
 	- email field / sage
+	- image attachments
  */
 
 /* generic post containers */
@@ -187,9 +194,10 @@ void res_display(struct resource *res)
 	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
-		fprintf(stdout, "<div class=\"pContainer\">");
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
+		const long id = res->arr[i].id; /* post id */
+		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
 			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
@@ -197,7 +205,10 @@ void res_display(struct resource *res)
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
 		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
 		fprintf(stdout, "<span class=\"pDate\">%s</span> ", time_str);
-		fprintf(stdout, "<span class=\"pId\">No.%ld</span>", res->arr[i].id);
+		fprintf(stdout, "<span class=\"pId\">"); /* post quote scripting */
+		fprintf(stdout, "<a href=\"#p%ld\">No.</a>", id);
+		fprintf(stdout, "<a href=\"javascript:quote('%ld');\">%ld</a>", id, id);
+		fprintf(stdout, "</span>");
 		fprintf(stdout, "<div class=\"pComment\">%s</div>", res->arr[i].text);
 		fprintf(stdout, "</div><br/>");
 	}
@@ -224,7 +235,7 @@ void res_freeup(struct resource *res)
 void display_controls(int limit, int offset, int results)
 {
 	/* display controls for the user */
-	fprintf(stdout, "<br />");
+	fprintf(stdout, "<div class=\"nav\">");
 	static const char *link =" <a href=\"board.cgi?offset=%d\"><b>%s</b></a> ";
 	if (offset - limit >= 0)
 		fprintf(stdout, link, offset - limit, "&lt;&lt; Next");
@@ -232,7 +243,7 @@ void display_controls(int limit, int offset, int results)
 		fprintf(stdout, link, 0, "[Back to Top]");
 	if (results == limit)
 		fprintf(stdout, link, offset + limit, "Prev &gt;&gt;");
-	fprintf(stdout, "<br />");
+	fprintf(stdout, "</div>");
 }
 
 void display_posts(sqlite3 *db, int limit, int offset)

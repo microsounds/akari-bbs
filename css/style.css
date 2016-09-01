@@ -40,7 +40,20 @@ textarea, input
 	font-family: sans-serif;
 }
 
+.nav
+{
+	color: navy;
+	text-decoration: underline;
+}
+
 .reset { clear: both; }
+
+
+/* post quoting */
+
+a:link { color: inherit; text-decoration: inherit; }
+a:hover { color: red; }
+a:visited { color: inherit; }
 
 /* post structure */
 
