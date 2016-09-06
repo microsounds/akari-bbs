@@ -40,20 +40,19 @@ textarea, input
 	font-family: sans-serif;
 }
 
-.nav
-{
-	color: navy;
-	text-decoration: underline;
-}
+.nav {	color: #646; }
+.nav > a:hover { color: red; }
 
 .reset { clear: both; }
 
 
 /* post quoting */
-
-a:link { color: inherit; text-decoration: inherit; }
-a:hover { color: red; }
+.pId > a:link { color: inherit; text-decoration: inherit; }
+.pId > a:hover { color: red; }
 a:visited { color: inherit; }
+
+.quote { color: green; }
+.linkquote { color: red; text-decoration: underline; }
 
 /* post structure */
 
@@ -74,4 +73,4 @@ a:visited { color: inherit; }
 
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }
-.pComment { margin: 16px 4px 5px 16px; }
+.pComment { margin: 16px 4px 5px 16px; white-space: pre-line; }

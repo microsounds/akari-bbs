@@ -6,6 +6,10 @@
 #include "query.h"
 #include "utf8.h"
 
+/* board.c
+ * database functionality and general user interface
+ */
+
 /* global constants */
 const int NAME_MAX_LENGTH = 75;
 const int COMMENT_MAX_LENGTH = 2000;
@@ -16,7 +20,7 @@ const char *database_loc = "db/database.sqlite3";
 
 /* software name */
 const char *ident = "akari-bbs";
-const int rev = 8; /* revision no. */
+const int rev = 9; /* revision no. */
 
 /* html */
 
@@ -36,18 +40,16 @@ const char *footer = "</body></html>";
 
 /* todo:
 	- >>9829 post linking
-	- do not allow more than 2 newlines unless in a [code] tag
-	- retain newline breaks in comment body
 	- change offset= to page=
 	- calculate page location based on post number
 	- greentexting
-	- code tags
-	- spoiler tags maybe?
-	- auto-updating (javascript?)
  */
 
 /* requested features:
+	- spoiler tags
+	- code tags
 	- email field / sage
+	- auto-updating (javascript?)
 	- image attachments
  */
 
@@ -352,11 +354,11 @@ int main(void)
 		struct comment cm; /* compose a new post */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		if (cm.name)
-			utf8_rewrite(cm.name);
+			strip_whitespace(utf8_rewrite(cm.name));
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
 		cm.text = query_search(&query, "comment"); /* comment body */
 		if (cm.text)
-			utf8_rewrite(cm.text);
+			strip_whitespace(utf8_rewrite(cm.text));
 		cm.ip = getenv("REMOTE_ADDR");
 		if (cm.text)
 		{

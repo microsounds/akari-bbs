@@ -14,20 +14,6 @@ static void query_stripplus(char *str)
 	while (*++str);
 }
 
-static void query_stripwhitespace(char *str)
-{
-	/* strip trailing spaces and/or newlines */
-	int len = strlen(str);
-	int i;
-	for (i = len - 1; i >= 0; i--)
-	{
-		if (str[i] == ' ' || str[i] == '\n')
-			str[i] = '\0';
-		else
-			break;
-	}
-}
-
 static unsigned query_count(const char *str)
 {
 	/* name=&comment=ok */
@@ -58,7 +44,6 @@ void query_parse(query_t *self, char *str)
 	for (i = 0; tok != NULL; i++)
 	{
 		query_stripplus(tok);
-		query_stripwhitespace(tok);
 		unsigned len = strlen(tok);
 		if (tok[len-1] == '=') /* field has no value */
 		{

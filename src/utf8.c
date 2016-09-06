@@ -5,7 +5,7 @@
 #include <crypt.h>
 
 /* utf8.c
- * UTF-8 conversion, input sanitation, syntactic sugar, tripcode routines
+ * UTF-8 conversion, input sanitation, tripcode routines
  */
 
 /*
@@ -68,6 +68,49 @@ unsigned utf8_charcount(const char *str)
 	return count;
 }
 
+char *strip_whitespace(char *str)
+{
+	/* strips excessive whitespace
+	 * newlines come in pairs because '\n' is received as "\r\n"
+	 */
+	static const unsigned MAX_CONSECUTIVE = 3 * 2;
+	static const unsigned char wspace[UCHAR_MAX] = {
+		['\a'] = 1, ['\b'] = 1, ['\t'] = 1,
+		['\n'] = 1, ['\v'] = 1, ['\f'] = 1,
+		['\r'] = 1, [' '] = 1
+	};
+	unsigned count = 0;
+	unsigned i;
+	for (i = 0; str[i]; i++) /* --> */
+	{
+		unsigned char c = str[i];
+		if (wspace[c])
+			count++;
+		else
+		{
+			if (count > MAX_CONSECUTIVE)
+			{
+				memmove(&str[i-count+1], &str[i], strlen(&str[i]) + 1);
+				if (i - count == 0) /* replace with space or nothing */
+					memmove(&str[0], &str[1], strlen(&str[1]) + 1);
+				else
+					str[i - count] = ' ';
+			}
+			count = 0;
+		}
+	}
+	unsigned j = strlen(str);
+	while (j--) /* <-- */
+	{
+		unsigned char c = str[j];
+		if (wspace[c])
+			str[j] = '\0';
+		else
+			break;
+	}
+	return str;
+}
+
 char *xss_sanitize(char **loc)
 {
 	/* replaces html syntax with escape codes in place
@@ -97,13 +140,6 @@ char *xss_sanitize(char **loc)
 	*loc = str;
 	return str;
 }
-
-/* TODO:
-	- >>9829 post linking
-	- do not allow more than 2 newlines unless in a [code] tag
-	- retain newline breaks in comment body
- */
-
 
 char *tripcode_pass(char **nameptr)
 {

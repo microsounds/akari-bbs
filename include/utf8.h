@@ -4,6 +4,7 @@
 char *strdup(const char *str);
 char *utf8_rewrite(char *str);
 unsigned utf8_charcount(const char *str);
+char *strip_whitespace(char *str);
 char *xss_sanitize(char **loc);
 char *tripcode_pass(char **nameptr);
 char *tripcode_hash(const char *pass);

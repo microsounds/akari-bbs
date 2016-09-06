@@ -1,6 +1,5 @@
 'use strict';
 
-
 function quote(text)
 {
 	/* click to quote posts */
