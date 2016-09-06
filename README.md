@@ -1,5 +1,5 @@
 # akari-bbs
-akari-bbs _(tentative)_ is a _**work-in-progress**_ lightweight messageboard CGI script written in C!
+akari-bbs _(tentative)_ is a _**work-in-progress**_ lightweight messageboard script written in C!
 
 The stack currently consists of Lighttpd and SQLite 3.x running on GNU/Linux.
 

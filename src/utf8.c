@@ -118,6 +118,7 @@ char *xss_sanitize(char **loc)
 	 * with new string location because realloc loses the original
 	 */
 	static const char *escape[UCHAR_MAX] = {
+		['\n'] = "&#013;", /* change '\n' to '\r' */
 		['\"'] = "&quot;",
 		['\''] = "&apos;",
 		['<'] = "&lt;",
