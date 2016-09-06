@@ -354,11 +354,17 @@ int main(void)
 		struct comment cm; /* compose a new post */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		if (cm.name)
-			strip_whitespace(utf8_rewrite(cm.name));
+		{
+			utf8_rewrite(cm.name);
+			strip_whitespace(cm.name);
+		}
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
 		cm.text = query_search(&query, "comment"); /* comment body */
 		if (cm.text)
-			strip_whitespace(utf8_rewrite(cm.text));
+		{
+			utf8_rewrite(cm.text);
+			strip_whitespace(cm.text);
+		}
 		cm.ip = getenv("REMOTE_ADDR");
 		if (cm.text)
 		{
