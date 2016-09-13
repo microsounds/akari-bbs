@@ -1,11 +1,38 @@
 #!/usr/bin/env bash
 
-# initializes database
+# initializes database and sets permissions
 # you must run this before starting
+# run it again anytime to reset DB permissions
 
 DBDIR=db
+DBFILE=database.sqlite3
+DBSCHEMA=sql/create_database.sql
+DBPATH=$PWD/$DBDIR/$DBFILE
+DBOWNER=www-data
 
-mkdir -p $DBDIR
-cat sql/create_database.sql | sqlite3 $DBDIR/database.sqlite3
-sudo chown www-data $DBDIR
-sudo chown www-data $DBDIR/database.sqlite3
+if ! [ -x $(command -v sqlite3) ]
+then
+	echo "SQLite3 cannot be found or is not installed."
+	exit 1
+fi
+
+if [ $(id -u) != 0 ]
+then
+	echo "You must run this script as root."
+	exit 1
+fi
+
+if [ -f $DBDIR/$DBFILE ]
+then
+	echo "Database already exists at '$DBPATH'."
+	echo "Permissions have been reset."
+else
+	mkdir -p $DBDIR
+	cat $DBSCHEMA | sqlite3 $DBDIR/$DBFILE
+	echo "Database initialized at '$DBPATH'."
+fi
+
+chown $DBOWNER $DBDIR
+chown $DBOWNER $DBDIR/$DBFILE
+
+exit 0
