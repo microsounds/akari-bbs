@@ -47,12 +47,14 @@ textarea, input
 
 
 /* post quoting */
+
 .pId > a:link { color: inherit; text-decoration: inherit; }
 .pId > a:hover { color: red; }
 a:visited { color: inherit; }
 
-.quote { color: green; }
-.linkquote { color: red; text-decoration: underline; }
+.quote { color: #66821B; }
+.linkquote { color: #D00 !important; text-decoration: underline; }
+
 
 /* post structure */
 

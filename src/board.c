@@ -20,7 +20,7 @@ const char *database_loc = "db/database.sqlite3";
 
 /* software name */
 const char *ident = "akari-bbs";
-const int rev = 9; /* revision no. */
+const int rev = 10; /* revision no. */
 
 /* html */
 
@@ -39,13 +39,14 @@ const char *header =
 const char *footer = "</body></html>";
 
 /* todo:
-	- >>9829 post linking
 	- change offset= to page=
 	- calculate page location based on post number
-	- greentexting
+	- db_fetch_parent() to provide correct quotelinks in the future
  */
 
 /* requested features:
+	- individual threads
+	- boards
 	- spoiler tags
 	- code tags
 	- email field / sage
@@ -138,8 +139,9 @@ char *sql_rowcount(const char *str)
 
 void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
-	/* fetch requested SQL results into memory */
-	/* this automated version is intended for COUNT(*) compatible statements */
+	/* fetch requested SQL results into memory
+	 * this automated version is intended for COUNT(*) compatible statements
+	 */
 	sqlite3_stmt *stmt;
 	char *row_count = sql_rowcount(sql); /* how many rows? */
 	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
@@ -165,8 +167,9 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 
 void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 {
-	/* fetch requested SQL results into memory */
-	/* this manual version is intended for LIMIT/OFFSET statements ONLY */
+	/* fetch requested SQL results into memory
+	 * this manual version is intended for LIMIT/OFFSET statements ONLY
+	 */
 	sqlite3_stmt *stmt;
 	res->count = limit; /* user-provided row count */
 	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
@@ -190,14 +193,112 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 	sqlite3_finalize(stmt);
 }
 
+/* NOTES:
+ * compiling with -O2 under GCC introduces valgrind errors which
+ * makes it seem the function is peeking backwards into unallocated memory
+ * almost as if it is stuck reading old pointer values before it was realloc'd
+ * eg. "Invalid read of size 4"
+ *     "Address 0xABCDEF is 72 bytes inside a block of size 73 alloc'd"
+ * Fix if this becomes a real issue.
+ */
+
+char *enquote_comment(char **loc)
+{
+	/* rewrite string with quote scripting in place
+	 * this is done at fetch time to avoid hardcoding URLs
+	 */
+	#define len(s) (sizeof(s) / sizeof(*s) - 1)
+	#define max(a, b) (((a) > (b)) ? (a) : (b))
+	enum { p1, p2, p3 }; /* '>' and '\n' escape codes */
+	static const char gt[] = "&gt;", nl[] = "&#013;";
+	static const char *const quote[] = {
+		"<span class=\"quote\">", "</span>"
+	};
+	static const char *const linkquote[] = {
+		"<a class=\"linkquote\" href=\"#p", "\">", "</a>"
+	};
+	char *str = *loc;
+	if (!strstr(str, gt)) /* no '>' found */
+		return str;
+	unsigned i;
+	for (i = 0; str[i]; i++)
+	{
+		unsigned length = strlen(str);
+		char *seek = strstr(&str[i], gt); /* seek to next '>' or to end */
+		i = (!seek) ? length : (unsigned) (seek - str);
+		if (length < i + max(len(gt), len(nl))) /* bounds checking */
+			break;
+		/* '>>' linkquote */
+		else if (!memcmp(&str[i + len(gt)], gt, len(gt)))
+		{
+			/* linkquote post number cannot begin with leading zero
+			 * and shouldn't be longer than 20 digits
+			 */
+			char c = str[i + len(gt) * 2]; /* peek ahead */
+			if (c >= '1' && c <= '9')
+			{
+				unsigned j = i + len(gt) * 2;
+				unsigned k = 0;
+				const unsigned N_MAX = 20;
+				char num[N_MAX]; /* get post number */
+				char tag[100]; /* tag buffer */
+				while (str[j] >= '0' && str[j] <= '9' && k < N_MAX)
+					num[k++] = str[j++];
+				num[k] = '\0'; /* stitch */
+				sprintf(tag, "%s%s%s", linkquote[p1], num, linkquote[p2]);
+				unsigned offset_a = strlen(tag); /* parts 1 + 2 */
+				str = (char *) realloc(str, strlen(str) + offset_a + 1);
+				memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
+				memcpy(&str[i], tag, offset_a);
+				j += offset_a; /* new length adjustment */
+
+				/* index 'j' now points to the right of the post number */
+				unsigned offset_b = strlen(linkquote[p3]); /* part 3 */
+				str = (char *) realloc(str, strlen(str) + offset_b + 1);
+				memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
+				memcpy(&str[j], linkquote[p3], offset_b);
+				i += offset_a + offset_b;
+			}
+			else
+				i += len(gt) * 2;
+		}
+		/* '>' quote */
+		else if (&str[0] == &str[i] || /* bounds checking */
+				 !memcmp(&str[i - ((i < len(nl)) ? 0 : len(nl))], nl, len(nl)))
+		{
+			/* don't seek backwards if too close to the start of the array
+			 * '>' quotes are only valid at the start of a new line
+			 */
+			unsigned offset_a = strlen(quote[p1]); /* part 1 */
+			str = (char *) realloc(str, strlen(str) + offset_a + 1);
+			memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
+			memcpy(&str[i], quote[p1], offset_a);
+
+			/* seek to the next newline or to end */
+			char *pos = strstr(&str[i], nl); /* part 2 */
+			unsigned j = (!pos) ? strlen(str) : (unsigned) (pos - str);
+			unsigned offset_b = strlen(quote[p2]);
+			str = (char *) realloc(str, strlen(str) + offset_b + 1);
+			memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
+			memcpy(&str[j], quote[p2], offset_b);
+			i += offset_a + offset_b;
+		}
+	}
+	#undef len
+	#undef max
+	*loc = str;
+	return str;
+}
+
 void res_display(struct resource *res)
 {
-	/* display SQL resulted stored in memory */
+	/* display SQL results stored in memory */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
+		const char *comment = enquote_comment(&res->arr[i].text);
 		const long id = res->arr[i].id; /* post id */
 		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
@@ -211,7 +312,7 @@ void res_display(struct resource *res)
 		fprintf(stdout, "<a href=\"#p%ld\">No.</a>", id);
 		fprintf(stdout, "<a href=\"javascript:quote('%ld');\">%ld</a>", id, id);
 		fprintf(stdout, "</span>");
-		fprintf(stdout, "<div class=\"pComment\">%s</div>", res->arr[i].text);
+		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
 		fprintf(stdout, "</div><br/>");
 	}
 }
