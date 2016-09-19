@@ -1,4 +1,7 @@
-/* database schema v3 */
+/*
+ * create_database.sql
+ * akari-bbs database schema version 3
+ */
 
 CREATE TABLE comments (
 	id		NUMERIC(20,0)	PRIMARY KEY,

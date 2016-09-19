@@ -6,8 +6,27 @@
 #include "query.h"
 #include "utf8.h"
 
-/* board.c
- * database functionality and general user interface
+/*
+ *  akari-bbs - Lightweight Messageboard System
+ *  Copyright (C) 2016 microsounds <https://github.com/microsounds>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * board.c
+ * end user interface and database functionality
  */
 
 /* global constants */
@@ -18,29 +37,65 @@ const int POSTS_PER_PAGE = 50;
 const char *default_name = "Anonymous";
 const char *database_loc = "db/database.sqlite3";
 
+/* banners */
+const int BANNER_COUNT = 625;
+const char *banner_loc = "img/banner";
+
 /* software name */
 const char *ident = "akari-bbs";
-const int rev = 10; /* revision no. */
+const int rev = 11; /* revision no. */
 
 /* html */
 
-const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
-const char *header =
-"<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Akari BBS</title>"
-"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
-"<script src=\"js/script.js\"></script></head>"
-"<body><a href=\"\\\"><div class=\"header\"><div id=\"logo\">Akari BBS</div></a><div id=\"postbox\">"
-"[!!] Post a comment!: <form action=\"board.cgi\" method=\"post\" id=\"postform\">Name (optional):"
-"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"75\" placeholder=\"Anonymous\">"
-"<input type=\"submit\" value=\"Submit\"><br/>"
-"<textarea id=\"pBox\" name=\"comment\" rows=\"3\" cols=\"52\" maxlength=\"2000\" "
-"placeholder=\"2000 characters max.\" form=\"postform\"></textarea></form></div>"
-"<div class=\"reset\"></div>";
-const char *footer = "</body></html>";
+const char *const header[] = {
+/* head */
+"<!DOCTYPE html>"
+"<html lang=\"en-US\">"
+"<head>"
+	"<title>Akari BBS</title>"
+	"<meta charset=\"UTF-8\" />"
+	"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+	"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
+	"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
+	"<script src=\"js/script.js\"></script>"
+"</head>",
 
-/* todo:
-	- change offset= to page=
-	- calculate page location based on post number
+/* banner format string */
+"<body>"
+	"<div class=\"header\">"
+		"<a href=\"/\"><img id=\"banner\" src=\"%s/%d.png\" alt=\"Akari BBS\">"
+			"<div id=\"bannertext\">Akari BBS</div>"
+		"</a>",
+
+/* post box */
+		"<div id=\"postbox\">"
+			"[!!] Post a comment!:"
+			"<form action=\"board.cgi\" method=\"post\" id=\"postform\">"
+				"Name (optional):"
+				"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"75\" placeholder=\"Anonymous\">"
+				"<input type=\"submit\" value=\"Submit\"><br/>"
+				"<textarea form=\"postform\" id=\"pBox\" name=\"comment\" rows=\"3\" cols=\"52\" "
+				"maxlength=\"2000\" placeholder=\"2000 characters max.\"></textarea>"
+			"</form>"
+			"<span class=\"ins\" style=\"float:right;\">"
+				"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
+				"Supported: <b>Tripcodes</b> (name#password), <b>[code]</b> tags."
+			"</span>"
+		"</div>"
+	"</div>"
+	"<div class=\"reset\"></div>"
+};
+const char *footer = "</body></html>";
+const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
+
+/* TODO:
+	- rewrite entire tag processing chain
+	- fix code tag extract, 0x7F bytes are escaping to the left and right of the tags
+	- replace [code] tags on the res_display end
+	- also add spoilers maybe
+	-
+	- insert post number into localStorage to emulate (You) quotes
+	- decouple board.cgi from post.cgi and add an admin panel with login
 	- db_fetch_parent() to provide correct quotelinks in the future
  */
 
@@ -54,7 +109,7 @@ const char *footer = "</body></html>";
 	- image attachments
  */
 
-/* generic post containers */
+/* post containers */
 
 struct comment {
 	long id;
@@ -202,21 +257,27 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
  * Fix if this becomes a real issue.
  */
 
-char *enquote_comment(char **loc)
+char *enquote_comment(char **loc, const long id)
 {
-	/* rewrite string with quote scripting in place
-	 * this is done at fetch time to avoid hardcoding URLs
+	/* rewrite string with quote markup and
+	 * generate client-side javascript functionality
+	 * function 'popup(self, request, undo)' requires post id
 	 */
 	#define len(s) (sizeof(s) / sizeof(*s) - 1)
 	#define max(a, b) (((a) > (b)) ? (a) : (b))
-	enum { p1, p2, p3 }; /* '>' and '\n' escape codes */
+	enum { p1, p2 }; /* '>' and '\n' escape codes */
 	static const char gt[] = "&gt;", nl[] = "&#013;";
 	static const char *const quote[] = {
 		"<span class=\"quote\">", "</span>"
 	};
 	static const char *const linkquote[] = {
-		"<a class=\"linkquote\" href=\"#p", "\">", "</a>"
+		"<a class=\"linkquote\" href=\"#p%s\" "
+		"onMouseOver=\"popup('p%ld','p%s',1)\" "
+		"onMouseOut=\"popup('p%ld','p%s',0)\" "
+		"onClick=\"popup('p%ld','p%s',0)\">",
+		"</a>"
 	};
+
 	char *str = *loc;
 	if (!strstr(str, gt)) /* no '>' found */
 		return str;
@@ -241,22 +302,22 @@ char *enquote_comment(char **loc)
 				unsigned k = 0;
 				const unsigned N_MAX = 20;
 				char num[N_MAX]; /* get post number */
-				char tag[100]; /* tag buffer */
+				char tag[300]; /* tag buffer */
 				while (str[j] >= '0' && str[j] <= '9' && k < N_MAX)
 					num[k++] = str[j++];
-				num[k] = '\0'; /* stitch */
-				sprintf(tag, "%s%s%s", linkquote[p1], num, linkquote[p2]);
-				unsigned offset_a = strlen(tag); /* parts 1 + 2 */
+				num[k] = '\0'; /* create tag */
+				sprintf(tag, linkquote[p1], num, id, num, id, num, id, num);
+				unsigned offset_a = strlen(tag); /* part 1  */
 				str = (char *) realloc(str, strlen(str) + offset_a + 1);
 				memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
 				memcpy(&str[i], tag, offset_a);
 				j += offset_a; /* new length adjustment */
 
 				/* index 'j' now points to the right of the post number */
-				unsigned offset_b = strlen(linkquote[p3]); /* part 3 */
+				unsigned offset_b = strlen(linkquote[p2]); /* part 2 */
 				str = (char *) realloc(str, strlen(str) + offset_b + 1);
 				memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
-				memcpy(&str[j], linkquote[p3], offset_b);
+				memcpy(&str[j], linkquote[p2], offset_b);
 				i += offset_a + offset_b;
 			}
 			else
@@ -298,8 +359,8 @@ void res_display(struct resource *res)
 	{
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
-		const char *comment = enquote_comment(&res->arr[i].text);
 		const long id = res->arr[i].id; /* post id */
+		const char *comment = enquote_comment(&res->arr[i].text, id);
 		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
@@ -308,9 +369,9 @@ void res_display(struct resource *res)
 		struct tm *ts = localtime((time_t *) &res->arr[i].time);
 		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
 		fprintf(stdout, "<span class=\"pDate\">%s</span> ", time_str);
-		fprintf(stdout, "<span class=\"pId\">"); /* post quote scripting */
-		fprintf(stdout, "<a href=\"#p%ld\">No.</a>", id);
-		fprintf(stdout, "<a href=\"javascript:quote('%ld');\">%ld</a>", id, id);
+		fprintf(stdout, "<span class=\"pId\">"); /* post link scripting */
+		fprintf(stdout, "<a href=\"#p%ld\" onClick=\"highlight('p%ld')\" title=\"Link to post\">No.</a>", id, id);
+		fprintf(stdout, "<a href=\"javascript:quote('%ld');\" title=\"Reply to post\">%ld</a>", id, id);
 		fprintf(stdout, "</span>");
 		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
 		fprintf(stdout, "</div><br/>");
@@ -426,6 +487,7 @@ int get_option(const char *get_str, const char *option)
 int main(void)
 {
 	clock_t start = clock();
+	srand(time(NULL));
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
 	if (sqlite3_open_v2(database_loc, &db, 2, NULL))
@@ -433,7 +495,9 @@ int main(void)
 		fprintf(stdout, "<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 		return 1;
 	}
-	fprintf(stdout, "%s", header); /* header / post box */
+	fprintf(stdout, "%s", header[0]); /* head */
+	fprintf(stdout, header[1], banner_loc, rand() % BANNER_COUNT); /* banner */
+	fprintf(stdout, "%s", header[2]); /* post box */
 
 	char *is_cgi = getenv("REQUEST_METHOD"); /* is this a CGI environment? */
 	unsigned POST_len = (!is_cgi) ? 0 : atoi(getenv("CONTENT_LENGTH"));

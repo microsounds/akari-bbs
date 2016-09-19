@@ -1,3 +1,9 @@
+@media screen and (max-width: 480px) /* mobile layout */
+{
+	.pContainer { width: 90%; }
+	.pComment { font-size: 17px; }
+}
+
 body
 {
 	margin: 7px;
@@ -6,18 +12,36 @@ body
 	background-color: #AFD3FF;
 }
 
-#logo
+#banner
 {
 	float: left;
-	width: 96px;
-	height: 96px;
 	margin: 2px;
+	margin-right: 8px;
+	margin-bottom: 6px;
+	width: 100px;
+	height: 100px;
+	opacity: 0.9;
+	box-shadow: 4px 4px 4px 0px lightgray;
+	background-color: #D6DAF0;
+	/* add color, change hue, and saturate B&W image */
+	filter: contrast(90%) sepia(60%) hue-rotate(305deg) saturate(2);
+}
+
+a > #bannertext
+{
+	float: left;
+	margin: 2px;
+	top: 8px;
+	left: 44px;
+	position: absolute;
 	color: #646;
-	font-size:18px;
+	background-color: #F7F4EE;
+	padding: 0px 2px 0px 2px;
+	opacity: 0.8;
+	font-size:12px;
 	font-family: sans-serif;
 	font-style: italic;
-	background-color: #D6DAF0;
-	background-image: url("http://i.imgur.com/6hH0xH4.png");
+	font-weight: bold;
 }
 
 #postbox
@@ -26,7 +50,7 @@ body
 	color: #646464;
 	font-size: 12px;
 	margin: 2px;
-	padding: 7px 15px 12px 10px;
+	padding: 7px 10px 4px 10px;
 	background-color: lightgray;
 	border-left: 6px solid #B3AFFF;
 	border-bottom: 1px solid #DBAFFF;
@@ -34,19 +58,16 @@ body
 	box-shadow: 3px 3px 7px 0px gray;
 }
 
-textarea, input
-{
-	color: #646464;
-	font-family: sans-serif;
-}
+.ins { padding:1px; font-size: 11px; }
 
-.nav {	color: #646; }
+textarea, input { color: #646464; font-family: sans-serif; }
+
+.nav { color: #646; }
 .nav > a:hover { color: red; }
 
 .reset { clear: both; }
 
-
-/* post quoting */
+/* quoting */
 
 .pId > a:link { color: inherit; text-decoration: inherit; }
 .pId > a:hover { color: red; }
@@ -54,9 +75,10 @@ a:visited { color: inherit; }
 
 .quote { color: #66821B; }
 .linkquote { color: #D00 !important; text-decoration: underline; }
+.highlight { border-left: 5px solid #9793D7; background-color: #D5B2FE !important; }
+.popup { position: absolute; border: 1px solid lightgray; }
 
-
-/* post structure */
+/* post container */
 
 .pContainer
 {
@@ -72,6 +94,7 @@ a:visited { color: inherit; }
 	border-right: 1px solid #DBBFFF;
 	box-shadow: 3px 3px 5px 0px #DBAFFF;
 }
+
 
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }

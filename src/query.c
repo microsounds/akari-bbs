@@ -2,7 +2,8 @@
 #include <string.h>
 #include "query.h"
 
-/* query.c
+/*
+ * query.c
  * general purpose GET/POST query+value tokenization and search
  */
 

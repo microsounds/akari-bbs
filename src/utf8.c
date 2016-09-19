@@ -4,8 +4,10 @@
 #include <limits.h>
 #include <crypt.h>
 
-/* utf8.c
- * UTF-8 conversion, input sanitation, tripcode routines
+/*
+ * utf8.c
+ * PRNG, string library, UTF-8 conversion,
+ * [code] tag preservation, input sanitation, tripcode routines
  */
 
 /*
@@ -29,6 +31,22 @@ char *strdup(const char *str)
 	}
 	else
 		return NULL;
+}
+
+char *strrev(char *str)
+{
+	/* reverses string in place */
+	unsigned i = strlen(str) - 1;
+	unsigned j = 0;
+	while (i > j)
+	{
+		char c = str[i];
+		str[i] = str[j];
+		str[j] = c;
+		i--;
+		j++;
+	}
+	return str;
 }
 
 static char hex_value(char c)
