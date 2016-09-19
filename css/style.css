@@ -67,6 +67,11 @@ textarea, input { color: #646464; font-family: sans-serif; }
 
 .reset { clear: both; }
 
+/*.footer { font-size: 11px; font-style: italic; color: #646464; } */
+.footer { font-size: 11px; font-style: italic; color: #646464; }
+.footer > a:link { color: inherit; text-decoration: inherit; }
+.footer > a:hover { color: red; }
+
 /* quoting */
 
 .pId > a:link { color: inherit; text-decoration: inherit; }

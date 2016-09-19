@@ -44,6 +44,7 @@ const char *banner_loc = "img/banner";
 /* software name */
 const char *ident = "akari-bbs";
 const int rev = 11; /* revision no. */
+const char *repo_url = "https://github.com/microsounds/akari-bbs";
 
 /* html */
 
@@ -79,7 +80,7 @@ const char *const header[] = {
 			"</form>"
 			"<span class=\"ins\" style=\"float:right;\">"
 				"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
-				"Supported: <b>Tripcodes</b> (name#password), <b>[code]</b> tags."
+				"Supported: <b>Tripcodes</b> (name#password)" /*, <b>[code]</b> tags*/ "."
 			"</span>"
 		"</div>"
 	"</div>"
@@ -554,9 +555,13 @@ int main(void)
 		/* check GET options for offset value */
 		int offset = get_option(getenv("QUERY_STRING"), "offset");
 		display_posts(db, POSTS_PER_PAGE, offset);
+
+		/* footer */
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><sub>%s rev. %d</sub> ", ident, rev);
-		if (delta) fprintf(stdout, "<sub>-- completed in %.3fms</sub>", delta);
+		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", ident, rev);
+		fprintf(stdout, "<a href=\"%s\">[github]</a> ", repo_url);
+		if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
+		fprintf(stdout, "</div>");
 	}
 	fprintf(stdout, "%s", footer);
 	fflush(stdout);
