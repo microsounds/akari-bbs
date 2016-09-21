@@ -475,7 +475,7 @@ int get_option(const char *get_str, const char *option)
 		query_parse(&query, get);
 		char *val = query_search(&query, option);
 		char *n = val;
-		while (*++n && val) /* is numerical? */
+		while (val && *++n) /* is numerical? */
 			if (*n < '0' || *n > '9')
 				val = NULL;
 		opt = (!val) ? 0 : atoi(val);
