@@ -25,7 +25,7 @@ static unsigned query_count(const char *str)
 			if (*str == '=') count++;
 		while (*++str);
 	}
-	return (!count) ? 0 : count;
+	return count;
 }
 
 void query_parse(query_t *self, char *str)
@@ -42,11 +42,17 @@ void query_parse(query_t *self, char *str)
 	self->queries = (struct q_pair *) malloc(sizeof(struct q_pair) * self->count);
 	char *tok = strtok(str, "&"); /* tokenize field + value pairs */
 	unsigned i;
-	for (i = 0; tok != NULL; i++)
+	for (i = 0; i < self->count && tok != NULL; i++)
 	{
 		query_stripplus(tok);
 		unsigned len = strlen(tok);
-		if (tok[len-1] == '=') /* field has no value */
+		char *c = tok; /* sanity check */
+		unsigned eq = 0;
+		while (*++c)
+			if (*c == '=') eq++;
+		if (eq != 1) /* malformed input */
+			memset(&self->queries[i], 0, sizeof(struct q_pair));
+		else if (tok[len-1] == '=') /* field has no value */
 		{
 			tok[len-1] = '\0'; /* truncate field name */
 			self->queries[i].field = (char *) malloc(sizeof(char) * len);
@@ -60,7 +66,7 @@ void query_parse(query_t *self, char *str)
 				if (tok[j] == '=') break;
 			self->queries[i].field = (char *) malloc(sizeof(char) * j + 1);
 			strncpy(self->queries[i].field, tok, j); /* copy first j bytes to field */
-			self->queries[i].field[j+1] = '\0';
+			self->queries[i].field[j] = '\0';
 			self->queries[i].value = (char *) malloc(sizeof(char) * strlen(&tok[j+1]) + 1);
 			strcpy(self->queries[i].value, &tok[j+1]); /* copy the rest to value */
 		}
@@ -76,8 +82,9 @@ char *query_search(query_t *self, const char *searchstr)
 		unsigned i;
 		for (i = 0; i < self->count; i++)
 		{
-			if (!strcmp(self->queries[i].field, searchstr))
-				return self->queries[i].value;
+			if (self->queries[i].field)
+				if (!strcmp(self->queries[i].field, searchstr))
+					return self->queries[i].value;
 		}
 	}
 	return NULL;
@@ -90,7 +97,8 @@ void query_free(query_t *self)
 		unsigned i;
 		for (i = 0; i < self->count; i++)
 		{
-			free(self->queries[i].field);
+			if (self->queries[i].field)
+				free(self->queries[i].field);
 			if (self->queries[i].value)
 				free(self->queries[i].value);
 		}
