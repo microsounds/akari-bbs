@@ -91,15 +91,23 @@ a:visited { color: inherit; }
 	font-family: monospace;
 	background-color: #F5FFFA;
 	color: #555;
-	border: 1px solid #DDD;
-	box-shadow: 6px 6px 0px 0px #646464;
-	margin: 0px 6px 6px 0px;
+	border: 1px solid #BBB;
+	box-shadow: 4px 4px 0px 0px #E2E8F5;
+	margin: 0px 4px 4px 0px;
 	padding: 5px;
 	display: inline-block;
 	max-width: 640px;
 	max-height: 1000px;
 	white-space: pre;
 	overflow: auto;
+}
+
+.codeblock > .codeblock
+{
+	background-color: #E2E8F5;
+	border: 1px solid lightgray;
+	box-shadow: 3px 3px 0px 0px #DDD;
+	padding: 2px;
 }
 
 /* post container */

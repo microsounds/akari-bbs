@@ -5,6 +5,7 @@ akari-bbs is a _**work-in-progress**_ lightweight messageboard system written in
 * Anonymous posting
 * Blockquotes and post quoting
 * [code] blocks for preserving whitespace in code snippets
+  * You can nest [code] tags to highlight specific parts of your code.
 * Cooldown timer
 * UTF-8 aware input sanitation
 * Usernames
@@ -12,7 +13,7 @@ akari-bbs is a _**work-in-progress**_ lightweight messageboard system written in
   * Enter your password in the form "name#password" to generate a tripcode.
   * Tripcodes are a simple way to provide persistent identity without registration.
 
-Server-side page response time currently clocks in at 0.8ms. (1/1250th of a second!)
+Server-side page response time currently clocks in at 1.0ms. (1/1000th of a second!)
 
 You can see a running instance of akari-bbs: [here!](http://akaribbs.mooo.com/)
 
