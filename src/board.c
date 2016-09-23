@@ -42,9 +42,9 @@ const int BANNER_COUNT = 625;
 const char *banner_loc = "img/banner";
 
 /* software name */
-const char *ident = "akari-bbs";
-const int rev = 11; /* revision no. */
 const char *repo_url = "https://github.com/microsounds/akari-bbs";
+const char *ident = "akari-bbs";
+const int rev = 12; /* revision no. */
 
 /* html */
 
@@ -80,7 +80,7 @@ const char *const header[] = {
 			"</form>"
 			"<span class=\"ins\" style=\"float:right;\">"
 				"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
-				"Supported: <b>Tripcodes</b> (name#password)" /*, <b>[code]</b> tags*/ "."
+				"Supported: <b>Tripcodes</b> (name#password), <b>[code]</b> tags."
 			"</span>"
 		"</div>"
 	"</div>"
@@ -90,14 +90,11 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
-	- rewrite entire tag processing chain
-	- fix code tag extract, 0x7F bytes are escaping to the left and right of the tags
-	- replace [code] tags on the res_display end
-	- also add spoilers maybe
-	-
+	- add spoilers maybe
 	- insert post number into localStorage to emulate (You) quotes
 	- decouple board.cgi from post.cgi and add an admin panel with login
 	- db_fetch_parent() to provide correct quotelinks in the future
+	- gzip compression (????)
  */
 
 /* requested features:
@@ -262,7 +259,7 @@ char *enquote_comment(char **loc, const long id)
 {
 	/* rewrite string with quote markup and
 	 * generate client-side javascript functionality
-	 * function 'popup(self, request, undo)' requires post id
+	 * function 'popup(self, request, hover)' requires post id
 	 */
 	#define len(s) (sizeof(s) / sizeof(*s) - 1)
 	#define max(a, b) (((a) > (b)) ? (a) : (b))
@@ -352,6 +349,48 @@ char *enquote_comment(char **loc, const long id)
 	return str;
 }
 
+char *format_comment(char **loc)
+{
+	/* replace [tags] with corresponding markup
+	 * - [code] tags must be processed last
+	 * - nested [code] tags are fine
+	 * - implicit [/code] added to end if none found
+	 * - nesting of other [tags] within codeblocks is not allowed
+	 */
+	static const char *const tags[] = { "[code]", "[/code]" };
+	static const char *const markup[] = { "<div class=\"codeblock\">", "</div>" };
+	char *str = *loc;
+	unsigned i, j, k;
+	for (i = 0; str[i]; i++)
+	{
+		char *left = strstr(&str[i], tags[0]); /* part 1 */
+		i = (!left) ? strlen(str) : (unsigned) (left - str);
+		if (!str[i]) /* none found */
+			break;
+		j = strstr(str, tags[1]) - str;
+		if (i >= j) /* malformed tag order */
+			break;
+		k = strlen(tags[0]); /* overlap */
+		unsigned offset_a = strlen(markup[0]);
+		memmove(&str[i], &str[i+k], strlen(&str[i+k]) + 1);
+		str = (char *) realloc(str, strlen(str) + offset_a + 1);
+		memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
+		memcpy(&str[i], markup[0], offset_a);
+
+		char *right = strstr(&str[i], tags[1]); /* part 2 */
+		j = (!right) ? strlen(str) : (unsigned) (right - str);
+		k = strlen(tags[1]); /* overlap */
+		unsigned offset_b = strlen(markup[1]);
+		if (right) /* overlap only if tag found */
+			memmove(&str[j], &str[j+k], strlen(&str[j+k]) + 1);
+		str = (char *) realloc(str, strlen(str) + offset_b + 1);
+		memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
+		memcpy(&str[j], markup[1], offset_b);
+	}
+	*loc = str;
+	return str;
+}
+
 void res_display(struct resource *res)
 {
 	/* display SQL results stored in memory */
@@ -361,7 +400,8 @@ void res_display(struct resource *res)
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
 		const long id = res->arr[i].id; /* post id */
-		const char *comment = enquote_comment(&res->arr[i].text, id);
+		enquote_comment(&res->arr[i].text, id); /* reformat comment string */
+		const char *comment = format_comment(&res->arr[i].text);
 		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
@@ -533,9 +573,11 @@ int main(void)
 			if (cm.name) /* prevent XSS attempts */
 				xss_sanitize(&cm.name);
 			xss_sanitize(&cm.text);
-			int timer = post_cooldown(db, cm.ip); /* is this user spamming? */
+			int timer = post_cooldown(db, cm.ip); /* user flooding? */
 
-			if (timer > 0)
+			if (spam_filter(cm.text)) /* user spamming? */
+				fprintf(stdout, "<h1>This post is spam, please rewrite it.</h1>%s", refresh);
+			else if (timer > 0)
 				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
 			else if (name_count > NAME_MAX_LENGTH || text_count > COMMENT_MAX_LENGTH || text_count < 1)
 				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);

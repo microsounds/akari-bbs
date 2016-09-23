@@ -6,8 +6,8 @@
 
 /*
  * utf8.c
- * PRNG, string library, UTF-8 conversion,
- * [code] tag preservation, input sanitation, tripcode routines
+ * string library, UTF-8 conversion,
+ * [code] tag extraction, input sanitation, tripcode routines
  */
 
 /*
@@ -33,20 +33,29 @@ char *strdup(const char *str)
 		return NULL;
 }
 
-char *strrev(char *str)
+static char *strstr_r(const char *haystack, const char *needle)
 {
-	/* reverses string in place */
-	unsigned i = strlen(str) - 1;
-	unsigned j = 0;
-	while (i > j)
+	/* find last occurrence of needle in haystack */
+	int len_h = strlen(haystack);
+	int len_n = strlen(needle);
+	int i, j;
+	for (i = len_h - 1; i >= 0; i--)
 	{
-		char c = str[i];
-		str[i] = str[j];
-		str[j] = c;
-		i--;
-		j++;
+		int matches = 0;
+		for (j = len_n - 1; j >= 0; j--)
+		{
+			if (i + j <= len_h)
+			{
+				if (haystack[i + j] == needle[j])
+					matches++;
+			}
+			else
+				break;
+		}
+		if (matches == len_n) /* return location */
+			return (char *) &haystack[i];
 	}
-	return str;
+	return NULL;
 }
 
 static char hex_value(char c)
@@ -86,6 +95,43 @@ unsigned utf8_charcount(const char *str)
 	return count;
 }
 
+char *codetag_extract(char *str)
+{
+	/* extract everything between outermost [code] tags
+	 * returns buffer containing extracted string
+	 * extracted region replaced with 0x7F bytes
+	 */
+	static const char *const tags[] = { "[code]", "[/code]" };
+	char *extract = NULL;
+	unsigned len = strlen(str);
+	unsigned i, j, k;
+	char *start = strstr(str, tags[0]); /* first tag */
+	i = (!start) ? len : start - str;
+	if (!str[i]) /* none found */
+		goto end;
+	char *end = strstr_r(str, tags[1]); /* last tag */
+	j = (!end) ? len - 1 : end - str;
+	if (i >= j) /* malformed tag order check */
+		goto end;
+	k = j - i; /* seek to end if none found */
+	extract = (char *) malloc(sizeof(char) * k + 1);
+	memcpy(extract, &str[i], k); /* extract */
+	extract[k] = '\0';
+	memset(&str[i], 0x7F, k); /* delete from str */
+	end: return extract;
+}
+
+void codetag_restore(char *str, char *extract)
+{
+	/* restore [code] tag region */
+	if (!extract) /* no need */
+		return;
+	unsigned i; /* seek to extract region */
+	for (i = 0; str[i] != 0x7F; i++);
+	memcpy(&str[i], extract, strlen(extract));
+	free(extract);
+}
+
 char *strip_whitespace(char *str)
 {
 	/* strips excessive whitespace
@@ -97,6 +143,7 @@ char *strip_whitespace(char *str)
 		['\n'] = 1, ['\v'] = 1, ['\f'] = 1,
 		['\r'] = 1, [' '] = 1
 	};
+	char *extract = codetag_extract(str); /* [code] tags exempt */
 	unsigned count = 0;
 	unsigned i;
 	for (i = 0; str[i]; i++) /* --> */
@@ -126,6 +173,7 @@ char *strip_whitespace(char *str)
 		else
 			break;
 	}
+	codetag_restore(str, extract);
 	return str;
 }
 
@@ -158,6 +206,35 @@ char *xss_sanitize(char **loc)
 	}
 	*loc = str;
 	return str;
+}
+
+int spam_filter(const char *str)
+{
+	/* rudimentary spam filter
+	 * blocks low-effort posts with spammy keywords
+	 * eg. code tag markup spammed back to back
+	 */
+	const unsigned SPAM_LIMIT = 2;
+	const unsigned APPROX = 20; /* space between instances */
+	static const char *const spam[] = { "[code]", "[spoiler]" };
+	unsigned count = 0;
+	unsigned i, j;
+	for (i = 0; i < sizeof(spam) / sizeof(*spam); i++)
+	{
+		char *prev = NULL;
+		unsigned spam_len = strlen(spam[i]);
+		for (j = 0; str[j]; j++)
+		{
+			char *next = strstr(&str[j], spam[i]);
+			if (!next)
+				break;
+			unsigned dist = (unsigned) (next - prev);
+			count += (dist <= spam_len + APPROX);
+			prev = next;
+			j = next - str;
+		}
+	}
+	return (count >= SPAM_LIMIT);
 }
 
 char *tripcode_pass(char **nameptr)

@@ -2,10 +2,9 @@
 *.out
 *.cgi
 
-# temporary files
-*.html
-
 # user generated data
-*.sqlite3
-*.db
 db/*
+
+# static website resources are outside the scope of this project
+static/*
+*.html
