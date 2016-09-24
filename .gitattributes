@@ -1,3 +1,2 @@
 # github language overrides
 *.h linguist-language=C
-*.sql linguist-language=SQL
