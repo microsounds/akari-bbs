@@ -23,11 +23,18 @@
  */
 
 /* lookup tables */
-const unsigned char wspace[UCHAR_MAX] = {
-	['\a'] = 1, ['\b'] = 1, ['\t'] = 1,
-	['\n'] = 1, ['\v'] = 1, ['\f'] = 1,
-	['\r'] = 1, [' '] = 1
+const unsigned char base16[UCHAR_MAX] = {
+	['0'] = 0, ['1'] = 1, ['2'] = 2, ['3'] = 3, ['4'] = 4,
+	['5'] = 5, ['6'] = 6, ['7'] = 7, ['8'] = 8, ['9'] = 9,
+	['A'] = 10, ['B'] = 11, ['C'] = 12, ['D'] = 13, ['E'] = 14, ['F'] = 15,
+	['a'] = 10, ['b'] = 11, ['c'] = 12, ['d'] = 13, ['e'] = 14, ['f'] = 15
 };
+
+const unsigned char wspace[UCHAR_MAX] = {
+	['\a'] = 1, ['\b'] = 1, ['\t'] = 1, ['\n'] = 1,
+	['\v'] = 1, ['\f'] = 1,	['\r'] = 1, [' '] = 1
+};
+
 const char *const escape[UCHAR_MAX] = {
 	['\n'] = "&#013;", /* change '\n' to '\r' */
 	['\"'] = "&quot;",
@@ -39,15 +46,12 @@ const char *const escape[UCHAR_MAX] = {
 
 char *strdup(const char *str)
 {
-	if (str)
-	{
-		long len = strlen(str);
-		char *dup = (char *) malloc(sizeof(char) * len + 1);
-		strcpy(dup, str);
-		return dup;
-	}
-	else
+	if (!str)
 		return NULL;
+	long len = strlen(str);
+	char *dup = (char *) malloc(sizeof(char) * len + 1);
+	strcpy(dup, str);
+	return dup;
 }
 
 char *strstr_r(const char *haystack, const char *needle)
@@ -75,17 +79,6 @@ char *strstr_r(const char *haystack, const char *needle)
 	return NULL;
 }
 
-static char hex_value(char c)
-{
-	c -= (c >= 'a' && c <= 'f') ? ' ' : 0; /* uppercase */
-	if (c >= '0' && c <= '9')
-		return c - '0';
-	else if (c >= 'A' && c <= 'F')
-		return c - '7';
-	else
-		return 0;
-}
-
 char *utf8_rewrite(char *str)
 {
 	/* converts ASCII escape codes to UTF-8 */
@@ -96,7 +89,7 @@ char *utf8_rewrite(char *str)
 		if (str[i] == '%')
 		{
 			for (j = 1; j <= 2; j++)
-				str[i] = (str[i] << 4) | hex_value(str[i+j]);
+				str[i] = (str[i] << 4) | base16(str[i+j]);
 			memmove(&str[i+1], &str[i+3], strlen(&str[i+3]) + 1);
 		}
 	}

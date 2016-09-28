@@ -2,9 +2,10 @@
 #define UTF8_H
 
 /* lookup tables */
-/* aka "warning: array subscript has type ‘char’" */
+extern const unsigned char base16[];
 extern const unsigned char wspace[];
 extern const char *const escape[];
+#define base16(c) base16[(unsigned char) (c)]
 #define wspace(c) wspace[(unsigned char) (c)]
 #define escape(c) escape[(unsigned char) (c)]
 
