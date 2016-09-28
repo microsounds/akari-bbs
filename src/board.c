@@ -90,9 +90,6 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
-	- rewrite tag extraction routines to be generic
-	- delete newlines between [code] and first non-newline character.
-	-
 	- insert post number into localStorage to emulate (You) quotes
 	- decouple board.cgi from post.cgi and add an admin panel with login
 	- db_fetch_parent() to provide correct quotelinks in the future
@@ -264,12 +261,9 @@ char *enquote_comment(char **loc, const long id)
 {
 	/* rewrite string with quote markup and
 	 * generate client-side javascript functionality
-	 * function 'popup(self, request, hover)' requires post id
+	 * - function 'popup(self, request, hover)' requires post id
 	 */
-	#define len(s) (sizeof(s) / sizeof(*s) - 1)
-	#define max(a, b) (((a) > (b)) ? (a) : (b))
-	enum { p1, p2 }; /* '>' and '\n' escape codes */
-	static const char gt[] = "&gt;", nl[] = "&#013;";
+	const char *gt = escape('>'), *nl = escape('\n'); /* escape codes */
 	static const char *const quote[] = {
 		"<span class=\"quote\">", "</span>"
 	};
@@ -280,7 +274,6 @@ char *enquote_comment(char **loc, const long id)
 		"onClick=\"popup('p%ld','p%s',0)\">",
 		"</a>"
 	};
-
 	char *str = *loc;
 	if (!strstr(str, gt)) /* no '>' found */
 		return str;
@@ -290,18 +283,18 @@ char *enquote_comment(char **loc, const long id)
 		unsigned length = strlen(str);
 		char *seek = strstr(&str[i], gt); /* seek to next '>' or to end */
 		i = (!seek) ? length : (unsigned) (seek - str);
-		if (length < i + max(len(gt), len(nl))) /* bounds checking */
+		if (length < i + max(strlen(gt), strlen(nl))) /* bounds check */
 			break;
 		/* '>>' linkquote */
-		else if (!memcmp(&str[i + len(gt)], gt, len(gt)))
+		else if (!memcmp(&str[i + strlen(gt)], gt, strlen(gt)))
 		{
 			/* linkquote post number cannot begin with leading zero
 			 * and shouldn't be longer than 20 digits
 			 */
-			char c = str[i + len(gt) * 2]; /* peek ahead */
+			char c = str[i + (strlen(gt) * 2)]; /* peek ahead */
 			if (c >= '1' && c <= '9')
 			{
-				unsigned j = i + len(gt) * 2;
+				unsigned j = i + (strlen(gt) * 2);
 				unsigned k = 0;
 				const unsigned N_MAX = 20;
 				char num[N_MAX]; /* get post number */
@@ -309,47 +302,45 @@ char *enquote_comment(char **loc, const long id)
 				while (str[j] >= '0' && str[j] <= '9' && k < N_MAX)
 					num[k++] = str[j++];
 				num[k] = '\0'; /* create tag */
-				sprintf(tag, linkquote[p1], num, id, num, id, num, id, num);
-				unsigned offset_a = strlen(tag); /* part 1  */
+				sprintf(tag, linkquote[0], num, id, num, id, num, id, num);
+				unsigned offset_a = strlen(tag); /* part 1 */
 				str = (char *) realloc(str, strlen(str) + offset_a + 1);
 				memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
 				memcpy(&str[i], tag, offset_a);
 				j += offset_a; /* new length adjustment */
 
 				/* index 'j' now points to the right of the post number */
-				unsigned offset_b = strlen(linkquote[p2]); /* part 2 */
+				unsigned offset_b = strlen(linkquote[1]); /* part 2 */
 				str = (char *) realloc(str, strlen(str) + offset_b + 1);
 				memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
-				memcpy(&str[j], linkquote[p2], offset_b);
+				memcpy(&str[j], linkquote[1], offset_b);
 				i += offset_a + offset_b;
 			}
 			else
-				i += len(gt) * 2;
+				i += (strlen(gt) * 2);
 		}
 		/* '>' quote */
-		else if (&str[0] == &str[i] || /* bounds checking */
-				 !memcmp(&str[i - ((i < len(nl)) ? 0 : len(nl))], nl, len(nl)))
+		else if (&str[0] == &str[i] || /* conditional bounds checking */
+		!memcmp(&str[i - ((i < strlen(nl)) ? 0 : strlen(nl))], nl, strlen(nl)))
 		{
 			/* don't seek backwards if too close to the start of the array
 			 * '>' quotes are only valid at the start of a new line
 			 */
-			unsigned offset_a = strlen(quote[p1]); /* part 1 */
+			unsigned offset_a = strlen(quote[0]); /* part 1 */
 			str = (char *) realloc(str, strlen(str) + offset_a + 1);
 			memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
-			memcpy(&str[i], quote[p1], offset_a);
+			memcpy(&str[i], quote[0], offset_a);
 
 			/* seek to the next newline or to end */
 			char *pos = strstr(&str[i], nl); /* part 2 */
 			unsigned j = (!pos) ? strlen(str) : (unsigned) (pos - str);
-			unsigned offset_b = strlen(quote[p2]);
+			unsigned offset_b = strlen(quote[1]);
 			str = (char *) realloc(str, strlen(str) + offset_b + 1);
 			memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
-			memcpy(&str[j], quote[p2], offset_b);
+			memcpy(&str[j], quote[1], offset_b);
 			i += offset_a + offset_b;
 		}
 	}
-	#undef len
-	#undef max
 	*loc = str;
 	return str;
 }

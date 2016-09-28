@@ -9,7 +9,7 @@
 /*
  * utf8.c
  * lookup tables, string library,
- * UTF-8 conversion, input sanitation, tripcode routines
+ * UTF-8 routines, input sanitation, tripcode routines
  */
 
 /*
