@@ -1,7 +1,8 @@
 @media screen and (max-width: 480px) /* mobile layout */
 {
 	.pContainer { width: 90%; }
-	.pComment { font-size: 17px; }
+	.pComment { font-size: 15px; }
+	.codeblock { width: 95%; }
 }
 
 body
