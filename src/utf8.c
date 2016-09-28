@@ -3,12 +3,13 @@
 #include <string.h>
 #include <limits.h>
 #include <crypt.h>
+#include "utf8.h"
 #include "substr.h"
 
 /*
  * utf8.c
- * string library, UTF-8 conversion,
- * input sanitation, tripcode routines
+ * lookup tables, string library,
+ * UTF-8 conversion, input sanitation, tripcode routines
  */
 
 /*
@@ -20,6 +21,21 @@
  * 1110xxxx  0xE0..0xEF   First byte of a 3-byte character encoding
  * 11110xxx  0xF0..0xF4   First byte of a 4-byte character encoding
  */
+
+/* lookup tables */
+const unsigned char wspace[UCHAR_MAX] = {
+	['\a'] = 1, ['\b'] = 1, ['\t'] = 1,
+	['\n'] = 1, ['\v'] = 1, ['\f'] = 1,
+	['\r'] = 1, [' '] = 1
+};
+const char *const escape[UCHAR_MAX] = {
+	['\n'] = "&#013;", /* change '\n' to '\r' */
+	['\"'] = "&quot;",
+	['\''] = "&apos;",
+	['<'] = "&lt;",
+	['>'] = "&gt;",
+	['&'] = "&amp;"
+};
 
 char *strdup(const char *str)
 {
@@ -34,7 +50,7 @@ char *strdup(const char *str)
 		return NULL;
 }
 
-static char *strstr_r(const char *haystack, const char *needle)
+char *strstr_r(const char *haystack, const char *needle)
 {
 	/* find last occurrence of needle in haystack */
 	int len_h = strlen(haystack);
@@ -96,111 +112,19 @@ unsigned utf8_charcount(const char *str)
 	return count;
 }
 
-char *codetag_extract(char *str)
-{
-	/* extract everything between outermost [code] tags
-	 * returns buffer containing extracted string
-	 * extracted region replaced with 0x7F bytes
-	 */
-	static const char *const tags[] = { "[code]", "[/code]" };
-	char *extract = NULL;
-	unsigned len = strlen(str);
-	unsigned i, j, k;
-	char *start = strstr(str, tags[0]); /* first tag */
-	i = (!start) ? len : start - str;
-	if (!str[i]) /* none found */
-		goto end;
-	char *end = strstr_r(str, tags[1]); /* last tag */
-	j = (!end) ? len - 1 : end - str;
-	if (i >= j) /* malformed tag order check */
-		goto end;
-	k = j - i; /* seek to end if none found */
-	extract = (char *) malloc(sizeof(char) * k + 1);
-	memcpy(extract, &str[i], k); /* extract */
-	extract[k] = '\0';
-	memset(&str[i], 0x7F, k); /* delete from str */
-	end: return extract;
-}
-
-void codetag_restore(char *str, char *extract)
-{
-	/* restore [code] tag region
-	 * extracted string might return shorter than before
-	 */
-	if (!extract) /* no need */
-		return;
-	unsigned len = strlen(extract);
-	unsigned i; /* seek to extract region */
-	for (i = 0; str[i] != 0x7F; i++);
-	memcpy(&str[i], extract, len);
-	while (str[i+len] == 0x7F) /* trim to fit */
-		memmove(&str[i+len], &str[i+len+1], strlen(&str[i+len+1]) + 1);
-	free(extract);
-}
-
-static void codetag_whitespace(char *str)
-{
-	/* strips initial and final '\n' from within code tags */
-	static const char *const tags[] = { "[code]", "[/code]" };
-	if (!str)
-		return;
-	unsigned i, j, k;
-	for (i = 0; i < sizeof(tags) / sizeof(*tags); i++)
-	{
-		for (j = 0; str[j]; j++)
-		{
-			/* seek to next or to end of string
-			 * if tags[1] and none found, seek to last character
-			 */
-			char *next = strstr(&str[j], tags[i]);
-			j = (next) ? (unsigned) (next - str)
-			           : (i) ? strlen(str) - 1 : strlen(str);
-			if (!str[j])
-				break;
-			k = (!i) ? j + strlen(tags[i])
-			         : (!next) ? j : j - 1; /* offsets */
-/*			do
-			{
-				char c = str[k];
-				printf("current c: '%c'\n", c);
-				if (c == '\n' || c == '\r')
-					memmove(&str[k], &str[k+1], strlen(&str[k+1]) + 1);
-				else
-					break;
-			} while (str[k++]); */
-			do
-			{
-				printf("current c: '%c'\n", str[k]);
-				if (str[k] == '\n' || str[k] == '\r')
-					memmove(&str[k], &str[k+1], strlen(&str[k+1]) + 1);
-				else
-					break;
-			}
-			while (str[k++]);
-
-		}
-	}
-}
-
 char *strip_whitespace(char *str)
 {
 	/* strips excessive whitespace
 	 * newlines come in pairs because '\n' is received as "\r\n"
 	 */
 	static const unsigned MAX_CONSECUTIVE = 3 * 2;
-	static const unsigned char wspace[UCHAR_MAX] = {
-		['\a'] = 1, ['\b'] = 1, ['\t'] = 1,
-		['\n'] = 1, ['\v'] = 1, ['\f'] = 1,
-		['\r'] = 1, [' '] = 1
-	};
-	char *extract = codetag_extract(str); /* [code] tags exempt */
-	codetag_whitespace(extract); /* ok, not really */
+	/* [code] tags exempt */
+	struct substr *extract = substr_extract(str, "[code]", "[/code]");
 	unsigned count = 0;
 	unsigned i;
 	for (i = 0; str[i]; i++) /* --> */
 	{
-		unsigned char c = str[i];
-		if (wspace[c])
+		if (wspace(str[i]))
 			count++;
 		else
 		{
@@ -218,13 +142,12 @@ char *strip_whitespace(char *str)
 	unsigned j = strlen(str);
 	while (j--) /* <-- */
 	{
-		unsigned char c = str[j];
-		if (wspace[c])
+		if (wspace(str[j]))
 			str[j] = '\0';
 		else
 			break;
 	}
-	codetag_restore(str, extract);
+	substr_restore(extract, str);
 	return str;
 }
 
@@ -234,25 +157,16 @@ char *xss_sanitize(char **loc)
 	 * char ** pointer required to update stack pointer
 	 * with new string location because realloc loses the original
 	 */
-	static const char *escape[UCHAR_MAX] = {
-		['\n'] = "&#013;", /* change '\n' to '\r' */
-		['\"'] = "&quot;",
-		['\''] = "&apos;",
-		['<'] = "&lt;",
-		['>'] = "&gt;",
-		['&'] = "&amp;"
-	};
 	char *str = *loc;
 	unsigned i;
 	for (i = 0; str[i]; i++)
 	{
-		unsigned char c = str[i];
-		if (escape[c])
+		if (escape(str[i]))
 		{
-			unsigned offset = strlen(escape[c]);
+			unsigned offset = strlen(escape(str[i]));
 			str = (char *) realloc(str, strlen(str) + offset + 1);
 			memmove(&str[i+offset], &str[i+1], strlen(&str[i+1]) + 1);
-			memcpy(&str[i], escape[c], offset);
+			memcpy(&str[i], escape(str[i]), offset);
 		}
 	}
 	*loc = str;

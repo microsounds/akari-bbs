@@ -1,7 +1,7 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "substr.h"
+#include "utf8.h"
 
 /*
  * substr.c
@@ -12,6 +12,7 @@
 
 static unsigned substr_count(const char *str, const char *ls, const char *rs)
 {
+	/* count conforming substrings */
 	unsigned count = 0;
 	unsigned len = strlen(str);
 	unsigned i;
@@ -30,15 +31,6 @@ static unsigned substr_count(const char *str, const char *ls, const char *rs)
 	return count;
 }
 
-static void print_n(char *str, unsigned n)
-{
-	printf("extracted target: '");
-	unsigned i;
-	for (i = 0; i < n; i++)
-		putchar(str[i]);
-	printf("'\n");
-}
-
 static void substr_newline(struct substr *ctr, const char *ls, const char *rs)
 {
 	/* most common use of this library will be [code] tag sanitation
@@ -48,30 +40,26 @@ static void substr_newline(struct substr *ctr, const char *ls, const char *rs)
 	unsigned i, j, k;
 	for (i = 0; i < ctr->count; i++)
 	{
-		printf("newline: substr #%u\n", i);
 		char *str = ctr->arr[i];
-		for (j = 0; j < 2; j++) /* if *ls, add offsets */
+		for (j = 0; j < 2; j++) /* format strings */
 		{
-			printf("testing for %s!\n", (j % 2) ? rs : ls);
 			for (k = 0; str[k]; k++)
 			{
 				char *next = strstr(&str[k], (j % 2) ? rs : ls);
 				k = (!next) ? strlen(str) - 1 : (unsigned) (next - str);
-				if (!str[k])
+				if (!str[k] || !next)
 					break;
-				int off = (j % 2) ? 0 : strlen(ls);
-				if (str[k+1] == '\0') /* bounds check */
-					break;
-				char *s = &str[k+off];
-				while (*s == '\n') /* --> */
-					memmove(s, s+1, strlen(s+1) + 1);
-				if (!next)
-					break;
+				unsigned offset = strlen(ls); /* set overlap point */
+				char *s = (j % 2) ? &str[k] : &str[k+offset];
+				if (j % 2) /* *rs seek <-- */
+					while (wspace(s[-1])) s--;
+				while (wspace(*s))
+					memmove(s, s + 1, strlen(s + 1) + 1);
 			}
 		}
 		/* edge case: no *rs and trailing newlines */
 		unsigned len = strlen(str) - 1;
-		while (str[len] == '\n')
+		while (wspace(str[len]))
 			str[len--] = '\0';
 	}
 }
@@ -84,7 +72,6 @@ struct substr *substr_extract(char *str, const char *ls, const char *rs)
 	 */
 	struct substr *out = (struct substr *) malloc(sizeof(struct substr));
 	out->count = substr_count(str, ls, rs);
-	fprintf(stdout, "counted substrs: %d\nstr: '%s'\n", out->count, str);
 	if (out->count)
 	{
 		out->o_len = (unsigned *) malloc(sizeof(unsigned) * out->count);
@@ -105,9 +92,6 @@ struct substr *substr_extract(char *str, const char *ls, const char *rs)
 			out->arr[idx] = (char *) malloc(sizeof(char) * k + 1);
 			memcpy(out->arr[idx], &str[i], k);
 			out->arr[idx++][k] = '\0';
-			
-/* debug */ print_n(out->arr[idx - 1], strlen(out->arr[idx - 1]));
-			
 			memset(&str[i], E_BYTE, k); /* delete */
 			i = j - 1; /* jump to next */
 			if (!to)
@@ -137,7 +121,6 @@ void substr_restore(struct substr *ctr, char *str)
 	 * extracted strings might return shorter than before
 	 */
 	unsigned i;
-	fprintf(stdout, "incoming count: %d\n", ctr->count);
 	for (i = 0; i < ctr->count; i++)
 	{
 		unsigned len = strlen(ctr->arr[i]);
@@ -146,9 +129,8 @@ void substr_restore(struct substr *ctr, char *str)
 		memcpy(&str[j], ctr->arr[i], len);
 		char *s = &str[j+len];
 		int diff = abs(ctr->o_len[i] - len);
-		printf("DIFF DETECTED: %d\n", diff);
 		if (diff)
-			memmove(s, s+diff, strlen(s+diff) + 1);
+			memmove(s, s + diff, strlen(s + diff) + 1);
 	}
 	substr_free(ctr);
 }

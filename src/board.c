@@ -44,7 +44,7 @@ const char *banner_loc = "img/banner";
 /* software name */
 const char *repo_url = "https://github.com/microsounds/akari-bbs";
 const char *ident = "akari-bbs";
-const int rev = 12; /* revision no. */
+const int rev = 13; /* revision no. */
 
 /* html */
 
