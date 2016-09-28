@@ -90,7 +90,9 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
-	- add spoilers maybe
+	- rewrite tag extraction routines to be generic
+	- delete newlines between [code] and first non-newline character.
+	-
 	- insert post number into localStorage to emulate (You) quotes
 	- decouple board.cgi from post.cgi and add an admin panel with login
 	- db_fetch_parent() to provide correct quotelinks in the future
@@ -105,6 +107,9 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 	- email field / sage
 	- auto-updating (javascript?)
 	- image attachments
+	- REST api
+		- /board/post/12345 - post mode, with link to parent thread
+		- /board/thread/12340 - thread mode
  */
 
 /* post containers */

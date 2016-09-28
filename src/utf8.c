@@ -3,11 +3,12 @@
 #include <string.h>
 #include <limits.h>
 #include <crypt.h>
+#include "substr.h"
 
 /*
  * utf8.c
  * string library, UTF-8 conversion,
- * [code] tag extraction, input sanitation, tripcode routines
+ * input sanitation, tripcode routines
  */
 
 /*
@@ -123,13 +124,62 @@ char *codetag_extract(char *str)
 
 void codetag_restore(char *str, char *extract)
 {
-	/* restore [code] tag region */
+	/* restore [code] tag region
+	 * extracted string might return shorter than before
+	 */
 	if (!extract) /* no need */
 		return;
+	unsigned len = strlen(extract);
 	unsigned i; /* seek to extract region */
 	for (i = 0; str[i] != 0x7F; i++);
-	memcpy(&str[i], extract, strlen(extract));
+	memcpy(&str[i], extract, len);
+	while (str[i+len] == 0x7F) /* trim to fit */
+		memmove(&str[i+len], &str[i+len+1], strlen(&str[i+len+1]) + 1);
 	free(extract);
+}
+
+static void codetag_whitespace(char *str)
+{
+	/* strips initial and final '\n' from within code tags */
+	static const char *const tags[] = { "[code]", "[/code]" };
+	if (!str)
+		return;
+	unsigned i, j, k;
+	for (i = 0; i < sizeof(tags) / sizeof(*tags); i++)
+	{
+		for (j = 0; str[j]; j++)
+		{
+			/* seek to next or to end of string
+			 * if tags[1] and none found, seek to last character
+			 */
+			char *next = strstr(&str[j], tags[i]);
+			j = (next) ? (unsigned) (next - str)
+			           : (i) ? strlen(str) - 1 : strlen(str);
+			if (!str[j])
+				break;
+			k = (!i) ? j + strlen(tags[i])
+			         : (!next) ? j : j - 1; /* offsets */
+/*			do
+			{
+				char c = str[k];
+				printf("current c: '%c'\n", c);
+				if (c == '\n' || c == '\r')
+					memmove(&str[k], &str[k+1], strlen(&str[k+1]) + 1);
+				else
+					break;
+			} while (str[k++]); */
+			do
+			{
+				printf("current c: '%c'\n", str[k]);
+				if (str[k] == '\n' || str[k] == '\r')
+					memmove(&str[k], &str[k+1], strlen(&str[k+1]) + 1);
+				else
+					break;
+			}
+			while (str[k++]);
+
+		}
+	}
 }
 
 char *strip_whitespace(char *str)
@@ -144,6 +194,7 @@ char *strip_whitespace(char *str)
 		['\r'] = 1, [' '] = 1
 	};
 	char *extract = codetag_extract(str); /* [code] tags exempt */
+	codetag_whitespace(extract); /* ok, not really */
 	unsigned count = 0;
 	unsigned i;
 	for (i = 0; str[i]; i++) /* --> */
