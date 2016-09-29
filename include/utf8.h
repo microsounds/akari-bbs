@@ -9,6 +9,14 @@ extern const char *const escape[]; /* static strings */
 #define wspace(c) wspace[(unsigned char) (c)]
 #define escape(c) escape[(unsigned char) (c)]
 
+/* format tags */
+#define SUPPORTED_TAGS 2 * 2
+extern const char *const fmt[];
+enum format_tag {
+	CODE_L, CODE_R,
+	SPOILER_L, SPOILER_R
+};
+
 /* string library */
 char *strdup(const char *str);
 char *strstr_r(const char *haystack, const char *needle);

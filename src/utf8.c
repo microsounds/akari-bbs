@@ -8,7 +8,7 @@
 
 /*
  * utf8.c
- * lookup tables, string library,
+ * lookup tables, format tags, string library,
  * UTF-8 routines, input sanitation, tripcode routines
  */
 
@@ -42,6 +42,14 @@ const char *const escape[UCHAR_MAX] = {
 	['<'] = "&lt;",
 	['>'] = "&gt;",
 	['&'] = "&amp;"
+};
+
+/* format tags */
+const char *const fmt[SUPPORTED_TAGS] = {
+	[CODE_L] = "[code]",
+	[CODE_R] = "[/code]",
+	[SPOILER_L] = "[spoiler]",
+	[SPOILER_R] = "[/spoiler]"
 };
 
 char *strdup(const char *str)
@@ -112,7 +120,7 @@ char *strip_whitespace(char *str)
 	 */
 	static const unsigned MAX_CONSECUTIVE = 3 * 2;
 	/* [code] tags exempt */
-	struct substr *extract = substr_extract(str, "[code]", "[/code]");
+	struct substr *extract = substr_extract(str, fmt[CODE_L], fmt[CODE_R]);
 	unsigned count = 0;
 	unsigned i;
 	for (i = 0; str[i]; i++) /* --> */
@@ -132,14 +140,9 @@ char *strip_whitespace(char *str)
 			count = 0;
 		}
 	}
-	unsigned j = strlen(str);
-	while (j--) /* <-- */
-	{
-		if (wspace(str[j]))
-			str[j] = '\0';
-		else
-			break;
-	}
+	unsigned len = strlen(str) - 1;
+	while (wspace(str[len])) /* <-- */
+		str[len--] = '\0';
 	substr_restore(extract, str);
 	return str;
 }
@@ -174,7 +177,7 @@ int spam_filter(const char *str)
 	 */
 	const unsigned SPAM_LIMIT = 2;
 	const unsigned APPROX = 20; /* space between instances */
-	static const char *const spam[] = { "[code]", "[spoiler]" };
+	const char *const spam[] = { fmt[CODE_L], fmt[SPOILER_L] };
 	unsigned count = 0;
 	unsigned i, j;
 	for (i = 0; i < sizeof(spam) / sizeof(*spam); i++)
