@@ -10,11 +10,14 @@ extern const char *const escape[]; /* static strings */
 #define escape(c) escape[(unsigned char) (c)]
 
 /* format tags */
-#define SUPPORTED_TAGS 2 * 2
 extern const char *const fmt[];
 enum format_tag {
+	SPOILER_L, SPOILER_R,
 	CODE_L, CODE_R,
-	SPOILER_L, SPOILER_R
+	/* [code] must come last
+	 * this is enforced by static assert
+	 */
+	SUPPORTED_TAGS /* total count */
 };
 
 /* string library */
@@ -34,7 +37,14 @@ int spam_filter(const char *str);
 char *tripcode_pass(char **nameptr);
 char *tripcode_hash(const char *pass);
 
-/* misc */
+/* misc macros */
+#ifndef NDEBUG
+	#define static_assert(expr) typedef char STATIC_ASSERT_FAIL [(expr)?1:-1]
+#else
+	#define static_assert(expr)
+#endif
+#define static_size(p) (sizeof(p) / sizeof(*p))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
+#define each(i, n) (i = 0; i < (n); i++)
 
 #endif

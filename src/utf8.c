@@ -45,12 +45,11 @@ const char *const escape[UCHAR_MAX] = {
 };
 
 /* format tags */
-const char *const fmt[SUPPORTED_TAGS] = {
-	[CODE_L] = "[code]",
-	[CODE_R] = "[/code]",
-	[SPOILER_L] = "[spoiler]",
-	[SPOILER_R] = "[/spoiler]"
+const char *const fmt[] = {
+	[SPOILER_L] = "[spoiler]", [SPOILER_R] = "[/spoiler]",
+	[CODE_L] = "[code]", [CODE_R] = "[/code]"
 };
+static_assert(static_size(fmt) == SUPPORTED_TAGS); /* size check */
 
 char *strdup(const char *str)
 {

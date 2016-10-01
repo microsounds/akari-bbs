@@ -23,12 +23,10 @@ $(OBJ)/%.o: $(SRC)/%.c $(wildcard $(INC)/*.h)
 	$(CC) $(CFLAGS) $(DEBUG) -I$(INC) -c $< -o $@
 
 # target: release - reset and build stripped binary only
-release: clean strip all
+release: DEBUG = -D NDEBUG
+release: CC += -s
+release: clean all
 	rm -rf $(OBJ)/
-
-strip:
-	$(eval CC += -s)
-	$(eval undefine DEBUG)
 
 # target: clean - reset working directory
 clean:
