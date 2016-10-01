@@ -1,12 +1,12 @@
-# temporary files
-/*.c
-
 # compiled object code
 obj/*
 *.cgi
 
 # user generated data
 db/*
+
+# unit tests
+unit/*
 
 # static website resources
 static/*

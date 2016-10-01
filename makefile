@@ -10,7 +10,7 @@ INPUT=$(wildcard $(SRC)/*.c)
 OBJECTS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(INPUT))
 OUTPUT=board.cgi
 
-.PHONY: all release strip clean help
+.PHONY: all release clean help
 
 # target: all - default, rebuild outdated .o and relink
 all: $(OUTPUT)
