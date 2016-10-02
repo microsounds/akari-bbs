@@ -5,6 +5,7 @@
 #include <sqlite3.h>
 #include "query.h"
 #include "utf8.h"
+#include "substr.h"
 
 /*
  *  akari-bbs - Lightweight Messageboard System
@@ -44,7 +45,7 @@ const char *banner_loc = "img/banner";
 /* software name */
 const char *repo_url = "https://github.com/microsounds/akari-bbs";
 const char *ident = "akari-bbs";
-const int rev = 13; /* revision no. */
+const int rev = 14; /* revision no. */
 
 /* html */
 
@@ -249,12 +250,13 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 }
 
 /* NOTES:
- * compiling with -O2 under GCC introduces valgrind errors which
- * makes it seem the function is peeking backwards into unallocated memory
- * almost as if it is stuck reading old pointer values before it was realloc'd
+ * on higher optmization levels (-O2), GCC will introduce false positive
+ * Valgrind errors which make it seem like the value of *str isn't being
+ * updated immediately after realloc, allowing the function to peek
+ * backwards into heap memory.
  * eg. "Invalid read of size 4"
  *     "Address 0xABCDEF is 72 bytes inside a block of size 73 alloc'd"
- * Fix if this becomes a real issue.
+ * Program still exhibits expected behavior regardless of optimizatons.
  */
 
 char *enquote_comment(char **loc, const long id)
@@ -347,41 +349,58 @@ char *enquote_comment(char **loc, const long id)
 
 char *format_comment(char **loc)
 {
-	/* replace [tags] with corresponding markup
-	 * - [code] tags must be processed last
-	 * - nested [code] tags are fine
-	 * - implicit [/code] added to end if none found
-	 * - nesting of other [tags] within codeblocks is not allowed
+	/* replace matching [tags] with corresponding markup with exceptions:
+	 * 1. nesting:
+	 *     - nesting of [tags] is fine
+	 * 2. auto-complete:
+	 *     - implicit [/tag] added to end of string if none found
+	 * 3. [code] blocks:
+	 *     - nesting of other tags within code blocks is not allowed
+	 *     - must be processed last for this reason
 	 */
-	static const char *const tags[] = { "[code]", "[/code]" };
-	static const char *const markup[] = { "<div class=\"codeblock\">", "</div>" };
-	char *str = *loc;
-	unsigned i, j, k;
-	for (i = 0; str[i]; i++)
-	{
-		char *left = strstr(&str[i], tags[0]); /* part 1 */
-		i = (!left) ? strlen(str) : (unsigned) (left - str);
-		if (!str[i]) /* none found */
-			break;
-		j = strstr(str, tags[1]) - str;
-		if (i >= j) /* malformed tag order */
-			break;
-		k = strlen(tags[0]); /* overlap */
-		unsigned offset_a = strlen(markup[0]);
-		memmove(&str[i], &str[i+k], strlen(&str[i+k]) + 1);
-		str = (char *) realloc(str, strlen(str) + offset_a + 1);
-		memmove(&str[i+offset_a], &str[i], strlen(&str[i]) + 1);
-		memcpy(&str[i], markup[0], offset_a);
+	static const char *const markup[] = {
+		[SPOILER_L] = "<span class=\"spoiler\">", [SPOILER_R] = "</span>",
+		[CODE_L] = "<div class=\"codeblock\">", [CODE_R] = "</div>"
+	};
+	/* some assumptions about the code tag system */
+	static_assert(static_size(markup) == SUPPORTED_TAGS); /* size check */
+	static_assert((SUPPORTED_TAGS % 2) == 0); /* tag count must be even */
+	static_assert((SUPPORTED_TAGS - 2) == CODE_L); /* [code] must come last */
 
-		char *right = strstr(&str[i], tags[1]); /* part 2 */
-		j = (!right) ? strlen(str) : (unsigned) (right - str);
-		k = strlen(tags[1]); /* overlap */
-		unsigned offset_b = strlen(markup[1]);
-		if (right) /* overlap only if tag found */
-			memmove(&str[j], &str[j+k], strlen(&str[j+k]) + 1);
-		str = (char *) realloc(str, strlen(str) + offset_b + 1);
-		memmove(&str[j+offset_b], &str[j], strlen(&str[j]) + 1);
-		memcpy(&str[j], markup[1], offset_b);
+	char *str = *loc;
+	struct substr *extract = substr_extract(str, fmt[CODE_L], fmt[CODE_R]);
+	unsigned i, j, k, l;
+	for (i = 0; i < SUPPORTED_TAGS; i += 2)
+	{
+		if (i == CODE_L) /* restore [code] tag regions */
+			substr_restore(extract, str);
+		for (j = 0; str[j]; j++)
+		{
+			char *from = strstr(&str[j], fmt[i]); /* left tag */
+			j = (!from) ? strlen(str) : (unsigned) (from - str);
+			if (!str[j])
+				break;
+			k = strstr(str, fmt[i+1]) - str;
+			if (j >= k) /* malformed tag order */
+				break;
+			l = strlen(fmt[i]); /* overlap */
+			memmove(&str[j], &str[j+l], strlen(&str[j+l]) + 1);
+			unsigned offset_a = strlen(markup[i]);
+			str = (char *) realloc(str, strlen(str) + offset_a + 1);
+			memmove(&str[j+offset_a], &str[j], strlen(&str[j]) + 1);
+			memcpy(&str[j], markup[i], offset_a);
+			j += offset_a - l;
+
+			char *to = strstr(&str[j], fmt[i+1]); /* right tag */
+			k = (!to) ? strlen(str) : (unsigned) (to - str);
+			l = strlen(fmt[i+1]); /* overlap */
+			if (to) /* overlap only if tag found */
+				memmove(&str[k], &str[k+l], strlen(&str[k+l]) + 1);
+			unsigned offset_b = strlen(markup[i+1]);
+			str = (char *) realloc(str, strlen(str) + offset_b + 1);
+			memmove(&str[k+offset_b], &str[k], strlen(&str[k]) + 1);
+			memcpy(&str[k], markup[i+1], offset_b);
+		}
 	}
 	*loc = str;
 	return str;
