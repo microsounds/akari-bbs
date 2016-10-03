@@ -362,7 +362,7 @@ char *format_comment(char **loc)
 		[SPOILER_L] = "<span class=\"spoiler\">", [SPOILER_R] = "</span>",
 		[CODE_L] = "<div class=\"codeblock\">", [CODE_R] = "</div>"
 	};
-	/* some assumptions about the code tag system */
+	/* some assumptions about the format tag system */
 	static_assert(static_size(markup) == SUPPORTED_TAGS); /* size check */
 	static_assert((SUPPORTED_TAGS % 2) == 0); /* tag count must be even */
 	static_assert((SUPPORTED_TAGS - 2) == CODE_L); /* [code] must come last */
@@ -389,7 +389,6 @@ char *format_comment(char **loc)
 			str = (char *) realloc(str, strlen(str) + offset_a + 1);
 			memmove(&str[j+offset_a], &str[j], strlen(&str[j]) + 1);
 			memcpy(&str[j], markup[i], offset_a);
-			j += offset_a - l;
 
 			char *to = strstr(&str[j], fmt[i+1]); /* right tag */
 			k = (!to) ? strlen(str) : (unsigned) (to - str);
