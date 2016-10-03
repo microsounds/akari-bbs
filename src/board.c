@@ -151,7 +151,7 @@ int db_transaction(sqlite3 *db, const char *sql)
 	return err;
 }
 
-void db_insert(sqlite3 *db, struct comment *cm)
+int db_insert(sqlite3 *db, struct comment *cm)
 {
 	/* insert new post into database */
 	cm->id = db_total(db) + 1;
@@ -160,20 +160,21 @@ void db_insert(sqlite3 *db, struct comment *cm)
 	static const char *mandatory =
 	"INSERT INTO comments(id, time, ip, text) VALUES(%ld, %ld, \"%s\", \"%s\");";
 	sprintf(insert, mandatory, cm->id, cm->time, cm->ip, cm->text);
-	db_transaction(db, insert);
+	int err = db_transaction(db, insert);
 	if (cm->name) /* insert optional fields if any */
 	{
 		const char *name = "UPDATE comments SET name = \"%s\" WHERE id = %ld;";
 		sprintf(insert, name, cm->name, cm->id);
-		db_transaction(db, insert);
+		err = db_transaction(db, insert);
 	}
 	if (cm->trip)
 	{
 		const char *trip = "UPDATE comments SET trip = \"%s\" WHERE id = %ld;";
 		sprintf(insert, trip, cm->trip, cm->id);
-		db_transaction(db, insert);
+		err = db_transaction(db, insert);
 	}
 	free(insert);
+	return err;
 }
 
 char *sql_rowcount(const char *str)
@@ -600,8 +601,11 @@ int main(void)
 				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
 			else
 			{
-				db_insert(db, &cm); /* insert */
-				fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
+				int err = db_insert(db, &cm); /* insert */
+				if (err == SQLITE_READONLY)
+					fprintf(stdout, "<h1>Post failed. DB is write-protected.</h1>%s", refresh);
+				else
+					fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
 			}
 			/* page should refresh shortly */
 		}
