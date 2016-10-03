@@ -4,7 +4,7 @@ akari-bbs is a _**work-in-progress**_ lightweight messageboard system written in
 ### Implemented Features
 * Anonymous posting
 * Blockquotes and post quoting
-* Special formatting options in order of precedence:
+* Special markup in order of precedence:
   * **[spoiler]** tags for concealing spoiler text
   * **[code]** blocks for preserving whitespace in code snippets
     * You can nest [code] tags to highlight specific parts of your code.

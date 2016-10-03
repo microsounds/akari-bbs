@@ -59,16 +59,43 @@ a > #bannertext
 	box-shadow: 3px 3px 7px 0px gray;
 }
 
-.ins { padding:1px; font-size: 11px; }
+/* help messages */
+
+.help { padding:1px; font-size: 11px; }
+.tooltip { display: inline; position: relative; color: #646464; text-decoration: none; }
+.tooltip:hover:before
+{
+	/* css arrow hack */
+	border: solid;
+	border-color: #646464 transparent;
+	border-width: 6px 6px 0 6px;
+	bottom: 20px;
+	content: "";
+	left; 60%;
+	position: absolute;
+	z-index: 99;
+}
+.tooltip:hover:after
+{
+	border-left: 5px solid #B3AFFF;
+	border-right: 1px solid #DBAFFF;
+	background: #646464;
+	bottom: 26px;
+	color: white;
+	content: attr(msg);
+	left: -45%;
+	padding: 5px 15px;
+	position: absolute;
+	z-index: 98;
+	width: 220px;
+}
 
 textarea, input { color: #646464; font-family: sans-serif; }
-
 .nav { color: #646; }
 .nav > a:hover { color: red; }
 
 .reset { clear: both; }
 
-/*.footer { font-size: 11px; font-style: italic; color: #646464; } */
 .footer { font-size: 11px; font-style: italic; color: #646464; }
 .footer > a:link { color: inherit; text-decoration: inherit; }
 .footer > a:hover { color: red; }
@@ -108,7 +135,7 @@ a:visited { color: inherit; }
 	overflow: auto;
 }
 
-.codeblock > .codeblock
+.codeblock > .codeblock /* nested */
 {
 	background-color: #E2E8F5;
 	border: 1px solid lightgray;
@@ -116,7 +143,7 @@ a:visited { color: inherit; }
 	padding: 2px;
 }
 
-.spoiler > .codeblock
+.spoiler > .codeblock /* codeblock in a spoiler??? */
 {
 	display: inline;
 	margin: 0px;
