@@ -1,5 +1,7 @@
 # akari-bbs — lightweight messageboard system
-akari-bbs is a _**work-in-progress**_ lightweight messageboard system written in C!
+akari-bbs is an **_in-development_** lightweight messageboard system written in C!
+
+Like a traditional futaba-like, no accounts are required to post and identity persistence is _optional_.
 
 ### Implemented Features
 * Anonymous posting
