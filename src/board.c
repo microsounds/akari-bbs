@@ -622,6 +622,9 @@ int main(void)
 		/* footer */
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
 		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", ident, rev);
+		#ifndef NDEBUG
+			fprintf(stdout, "dev-build ");
+		#endif
 		fprintf(stdout, "<a href=\"%s\">[github]</a> ", repo_url);
 		if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
 		fprintf(stdout, "</div>");
