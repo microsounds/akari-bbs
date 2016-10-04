@@ -1,5 +1,5 @@
 /*
- * create_database.sql
+ * old_database.sql
  * akari-bbs database schema version 3
  */
 

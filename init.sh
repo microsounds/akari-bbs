@@ -6,7 +6,7 @@
 
 DBDIR=db
 DBFILE=database.sqlite3
-DBSCHEMA=sql/create_database.sql
+DBSCHEMA=sql/database_schema.sql
 DBPATH=$PWD/$DBDIR/$DBFILE
 DBOWNER=www-data
 

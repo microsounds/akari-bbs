@@ -1,0 +1,76 @@
+BITWISE FLAGS
+
+enum user_priv {
+	USER_NORMAL = (1 << 0),
+	USER_MOD    = (1 << 1),
+	USER_ADMIN  = (1 << 2)
+};
+
+enum board_status {
+	BOARD_LOCKED = (1 << 0)
+};
+
+enum thread_status {
+	THREAD_ACTIVE   = (1 << 0),
+	THREAD_LOCKED   = (1 << 1),
+	THREAD_STICKIED = (1 << 2),
+};
+
+enum post_options {
+	POST_SAGE = (1 << 0)
+};
+
+PLANNED MODES
+
+server: /banned.cgi
+client: /banned
+
+
+server: /submit.cgi
+client: /submit
+
+server: /delete.cgi
+client: /delete
+
+server: /board.cgi?board=a&mode=thread&postno=12345
+client: /a/thread/12345
+
+THREAD MODE
+/a/thread/12345
+
+>>normal usage
+[Home] / a / thread / No.12345
+[Home] > Anime & Manga > Thread Mode > No.12345
+Statistics: Replies: 274/350 | Images: 23 | Unique Posters: 78 | Page 1/10
+
+>>not a parent thread
+[Home] > Anime & Manga > Thread Mode > No. 12350
+
+ERROR
+Post No.12350 is a Child of Parent No.12345
+Redirecting to /a/thread/123450#p12350 in 2 seconds
+
+>>number exceeds highest ID
+[Home] > Anime & Manga > Thread Mode > No. 9999950
+
+404
+Post No. 9999950 doesn't exist yet.
+
+>>post doesn't exist
+[Home] > Anime & Manga > Thread Mode > No. 187
+
+404
+Post No. 187 doesn't exist on this board.
+It may have been pruned or deleted.
+
+
+PEEK MODE
+/a/peek/12350
+
+>>normal usage
+[Home] > Anime & Manga > Peek Mode > No.12350
+You are viewing Post No.12350, a child of Parent No. 12345.
+
+>>parent
+[Home] > Anime & Manga > Peek Mode > No.12345
+You are viewing Parent Post No.12345.
