@@ -6,23 +6,26 @@ SRC=src
 INC=include
 OBJ=obj
 
+# executables to build
+OUTPUT=board.cgi submit.cgi
+
 INPUT=$(wildcard $(SRC)/*.c)
 OBJECTS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(INPUT))
-OUTPUT=board.cgi
+MAINS=$(patsubst %.cgi,$(OBJ)/%.o, $(OUTPUT))
 
 .PHONY: all release clean help
 
-# target: all - default, rebuild outdated .o and relink
+# target: all - default, rebuild outdated .o and relink .cgi
 all: $(OUTPUT)
 
 $(OUTPUT): $(OBJECTS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $(patsubst %.cgi,$(OBJ)/%.o, $@) $(filter-out $(MAINS), $^) $(LDFLAGS)
 
 $(OBJ)/%.o: $(SRC)/%.c $(wildcard $(INC)/*.h)
 	@mkdir -p $(OBJ)
 	$(CC) $(CFLAGS) $(DEBUG) -I$(INC) -c $< -o $@
 
-# target: release - reset and build stripped binary only
+# target: release - reset and build stripped binaries only
 release: DEBUG = -D NDEBUG
 release: CC += -s
 release: clean all

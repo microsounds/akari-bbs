@@ -54,6 +54,6 @@ Copyright (C) 2016 microsounds <<https://github.com/microsounds>>
 
 akari-bbs is free software, released under the terms of the GNU General Public License v3 or later.
 
-See [`src/board.c`](src/board.c) for full copyright or [`LICENSE`](LICENSE) for license information.
+See [`include/global.h`](include/global.h) for full copyright or [`LICENSE`](LICENSE) for license information.
 
 ![Akari](http://i.imgur.com/fOCh5UZ.gif)

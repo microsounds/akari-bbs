@@ -1,24 +1,16 @@
-BITWISE FLAGS
+CGI
 
-enum user_priv {
-	USER_NORMAL = (1 << 0),
-	USER_MOD    = (1 << 1),
-	USER_ADMIN  = (1 << 2)
-};
+IMPLEMENTED
+board.cgi /* interface */
+submit.cgi /* post submission */
 
-enum board_status {
-	BOARD_LOCKED = (1 << 0)
-};
+TO IMPLEMENT
+delete.cgi /* post delete */
+report.cgi /* report posts */
+banned.cgi /* ban screen */
+admin.cgi  /* moderation panel */
+system.cgi /* system-wide changes */
 
-enum thread_status {
-	THREAD_ACTIVE   = (1 << 0),
-	THREAD_LOCKED   = (1 << 1),
-	THREAD_STICKIED = (1 << 2),
-};
-
-enum post_options {
-	POST_SAGE = (1 << 0)
-};
 
 PLANNED MODES
 

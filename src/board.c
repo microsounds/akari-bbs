@@ -3,49 +3,15 @@
 #include <string.h>
 #include <time.h>
 #include <sqlite3.h>
+#include "global.h"
 #include "query.h"
 #include "utf8.h"
 #include "substr.h"
 
 /*
- *  akari-bbs - Lightweight Messageboard System
- *  Copyright (C) 2016 microsounds <https://github.com/microsounds>
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-/*
  * board.c
  * end user interface and database functionality
  */
-
-/* global constants */
-const int NAME_MAX_LENGTH = 75;
-const int COMMENT_MAX_LENGTH = 2000;
-const int COOLDOWN_SEC = 30;
-const int POSTS_PER_PAGE = 50;
-const char *default_name = "Anonymous";
-const char *database_loc = "db/database.sqlite3";
-
-/* banners */
-const int BANNER_COUNT = 625;
-const char *banner_loc = "img/banner";
-
-/* software name */
-const char *repo_url = "https://github.com/microsounds/akari-bbs";
-const char *ident = "akari-bbs";
-const int rev = 14; /* revision no. */
 
 /* html */
 
@@ -622,7 +588,7 @@ int main(void)
 
 		/* footer */
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", ident, rev);
+		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", ident, REVISION);
 		#ifndef NDEBUG
 			fprintf(stdout, "dev-build ");
 		#endif
