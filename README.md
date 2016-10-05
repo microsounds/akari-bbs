@@ -1,4 +1,7 @@
 # akari-bbs — lightweight messageboard system
+
+### thread-mode rewrite, latest working build is microsounds@2778714
+
 akari-bbs is an **_in-development_** lightweight messageboard system written in C!
 
 Like a traditional futaba-like, no accounts are required to post and identity persistence is _optional_.

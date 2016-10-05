@@ -36,25 +36,4 @@ const char *database_loc = "db/database.sqlite3";
 #define BANNER_COUNT 625
 const char *banner_loc = "img/banner";
 
-/* database status flags */
-enum user_priv {
-	USER_NORMAL = (1 << 0),
-	USER_MOD    = (1 << 1),
-	USER_ADMIN  = (1 << 2)
-};
-
-enum board_status {
-	BOARD_LOCKED = (1 << 0)
-};
-
-enum thread_status {
-	THREAD_ACTIVE   = (1 << 0),
-	THREAD_LOCKED   = (1 << 1),
-	THREAD_STICKIED = (1 << 2)
-};
-
-enum post_options {
-	POST_SAGE = (1 << 0)
-};
-
 #endif

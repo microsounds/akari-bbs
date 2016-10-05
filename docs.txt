@@ -17,7 +17,6 @@ PLANNED MODES
 server: /banned.cgi
 client: /banned
 
-
 server: /submit.cgi
 client: /submit
 

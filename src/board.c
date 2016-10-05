@@ -4,6 +4,7 @@
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
+#include "database.h"
 #include "query.h"
 #include "utf8.h"
 #include "substr.h"
@@ -12,8 +13,6 @@
  * board.c
  * user interface / database fetch
  */
-
-/* html */
 
 const char *const header[] = {
 /* head */
@@ -61,8 +60,10 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
+	- decouple board.cgi from submit.cgi
+	-
 	- insert post number into localStorage to emulate (You) quotes
-	- decouple board.cgi from post.cgi and add an admin panel with login
+	- add admin panel w/ login
 	- db_fetch_parent() to provide correct quotelinks in the future
 	- gzip compression (????)
  */
@@ -75,27 +76,10 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 	- email field / sage
 	- auto-updating (javascript?)
 	- image attachments
-	- REST api
-		- /board/post/12345 - post mode, with link to parent thread
+	- REST api??
+		- /board/peek/12345 - peek mode, with link to parent thread
 		- /board/thread/12340 - thread mode
  */
-
-/* post containers */
-
-struct comment {
-	long id;
-	long time;
-	char *ip;
-	char *name; /* optional */
-	char *trip; /* optional */
-	char *text;
-};
-
-struct resource {
-	long count;
-	struct comment *arr;
-};
-
 
 /* this goes in submit.c */
 
@@ -121,7 +105,7 @@ int db_transaction(sqlite3 *db, const char *sql)
 	return err;
 }
 
-int db_insert(sqlite3 *db, struct comment *cm)
+int db_insert(sqlite3 *db, struct post *cm)
 {
 	/* insert new post into database */
 	cm->id = db_total(db) + 1;
@@ -146,6 +130,31 @@ int db_insert(sqlite3 *db, struct comment *cm)
 	free(insert);
 	return err;
 }
+
+int post_cooldown(sqlite3 *db, const char *ip_addr)
+{
+	/* calculates cooldown timer expressed in seconds remaining */
+	const long current_time = time(NULL);
+	const long delta = current_time - COOLDOWN_SEC;
+	long timer = COOLDOWN_SEC;
+	struct resource res;
+	char sql[100]; /* fetch newest posts only */
+	sprintf(sql, "SELECT * FROM comments WHERE time > %ld;", delta);
+	res_fetch(db, &res, sql);
+	int i;
+	for (i = res.count - 1; i >= 0; i--)
+	{
+		if (!strcmp(ip_addr, res.arr[i].ip))
+		{
+			timer = current_time - res.arr[i].time;
+			break;
+		}
+	}
+	res_freeup(&res);
+	return COOLDOWN_SEC - timer;
+}
+
+/* stop here */
 
 char *sql_rowcount(const char *str)
 {
@@ -177,7 +186,7 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
 	sqlite3_step(stmt);
 	res->count = sqlite3_column_int(stmt, 0);
-	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
+	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
 	sqlite3_finalize(stmt);
 	free(row_count);
 	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
@@ -202,7 +211,7 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 	 */
 	sqlite3_stmt *stmt;
 	res->count = limit; /* user-provided row count */
-	res->arr = (struct comment *) malloc(sizeof(struct comment) * res->count);
+	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
 	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
@@ -469,29 +478,6 @@ void display_posts(sqlite3 *db, int limit, int offset)
 	res_freeup(&res);
 }
 
-int post_cooldown(sqlite3 *db, const char *ip_addr)
-{
-	/* calculates cooldown timer expressed in seconds remaining */
-	const long current_time = time(NULL);
-	const long delta = current_time - COOLDOWN_SEC;
-	long timer = COOLDOWN_SEC;
-	struct resource res;
-	char sql[100]; /* fetch newest posts only */
-	sprintf(sql, "SELECT * FROM comments WHERE time > %ld;", delta);
-	res_fetch(db, &res, sql);
-	int i;
-	for (i = res.count - 1; i >= 0; i--)
-	{
-		if (!strcmp(ip_addr, res.arr[i].ip))
-		{
-			timer = current_time - res.arr[i].time;
-			break;
-		}
-	}
-	res_freeup(&res);
-	return COOLDOWN_SEC - timer;
-}
-
 int get_option(const char *get_str, const char *option)
 {
 	/* returns requested numerical option if found */
@@ -545,7 +531,7 @@ int main(void)
 		 * cm strings stored in query container
 		 * or as static data, do not free them
 		 */
-		struct comment cm; /* compose a new post */
+		struct post cm; /* compose a new post */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		if (cm.name)
 			strip_whitespace(utf8_rewrite(cm.name));
