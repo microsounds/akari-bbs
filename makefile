@@ -6,7 +6,8 @@ SRC=src
 INC=include
 OBJ=obj
 
-# executables to build
+# make will build an .o in obj/ from every .c in src/
+# executables and their main .c file must share the same name
 OUTPUT=board.cgi submit.cgi
 
 INPUT=$(wildcard $(SRC)/*.c)
