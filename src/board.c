@@ -10,8 +10,9 @@
 #include "substr.h"
 
 /*
+ * [core functionality]
  * board.c
- * end user interface
+ * messageboard user interface
  */
 
 const char *const header[] = {
@@ -34,7 +35,7 @@ const char *const header[] = {
 			"<div id=\"bannertext\">Akari BBS</div>"
 		"</a>",
 
-/* post box */
+/* post box + board_id format string */
 		"<div id=\"postbox\">"
 			"[!!] Post a comment!:"
 			"<form action=\"board.cgi\" method=\"post\" id=\"postform\">"
@@ -43,6 +44,7 @@ const char *const header[] = {
 				"<input type=\"submit\" value=\"Submit\"><br/>"
 				"<textarea form=\"postform\" id=\"pBox\" name=\"comment\" rows=\"3\" cols=\"52\" "
 				"maxlength=\"2000\" placeholder=\"2000 characters max.\"></textarea>"
+				"<input type=\"hidden\" name=\"board\" value=\"%s\">"
 			"</form>"
 			"<span class=\"help\" style=\"float:right;\">"
 				"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
@@ -61,6 +63,7 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 /* TODO:
 	- decouple board.cgi from submit.cgi
 	- all fetchers must now account for board id
+	- all SQL statements must now account for board id too
 	-
 	- insert post number into localStorage to emulate (You) quotes
 	- add admin panel w/ login
@@ -411,14 +414,14 @@ int main(void)
 	srand(time(NULL));
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
-	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL))
+	if (sqlite3_open_v2(DATABASE_LOC, &db, 1, NULL)) /* read-only mode */
 	{
 		fprintf(stdout, "<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 		return 1;
 	}
 	fprintf(stdout, "%s", header[0]); /* head */
 	fprintf(stdout, header[1], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
-	fprintf(stdout, "%s", header[2]); /* post box */
+	fprintf(stdout, header[2], "dummy"); /* post box */
 
 	char *is_cgi = getenv("REQUEST_METHOD"); /* is this a CGI environment? */
 	unsigned POST_len = (!is_cgi) ? 0 : atoi(getenv("CONTENT_LENGTH"));

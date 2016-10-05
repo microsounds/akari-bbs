@@ -47,7 +47,7 @@ CREATE TABLE archived_threads (
 
 CREATE TABLE posts (
 	board_id  TEXT    NOT NULL,
-	parent_id INTEGER NOT NULL, /* 0 if parent */
+	parent_id INTEGER NOT NULL,
 	id        INTEGER NOT NULL,
 	time      INTEGER NOT NULL,
 	options   INTEGER NOT NULL, /* sage, etc. */
@@ -56,6 +56,7 @@ CREATE TABLE posts (
 	ip        TEXT    NOT NULL,
 	name      TEXT,
 	trip      TEXT,
+	subject   TEXT,
 	comment   TEXT    NOT NULL
 );
 
@@ -66,7 +67,7 @@ INSERT INTO boards VALUES
 INSERT INTO threads VALUES ("test", 1, 0);
 
 INSERT INTO posts VALUES
-("test", 0, 1, 1471893064, 0, 1, "dummy", "192.168.1.1", NULL, NULL, "This is a sample comment!"),
+("test", 1, 1, 1471893064, 0, 1, "dummy", "192.168.1.1", NULL, NULL, "This is a sample comment!"),
 ("test", 1, 2, 1371293064, 0, 1, "dummy", "127.0.0.1", NULL, NULL, "This is comment #2"),
 ("test", 1, 3, 1271493064, 0, 1, "dummy", "39.39.39.39", NULL, NULL, "Another comment."),
 ("test", 1, 4, 1171892064, 0, 1, "dummy", "1.1.1.1", NULL, NULL, "This board sucks, lol."),

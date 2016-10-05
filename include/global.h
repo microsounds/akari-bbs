@@ -29,6 +29,7 @@
 #define COMMENT_MAX_LENGTH 2000
 #define COOLDOWN_SEC 30
 #define POSTS_PER_PAGE 50
+#define MAX_POST_PAYLOAD 10000
 #define DEFAULT_NAME "Anonymous"
 #define DATABASE_LOC "db/database.sqlite3"
 

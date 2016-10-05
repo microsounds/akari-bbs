@@ -10,18 +10,23 @@
  * database post fetching
  */
 
+/*
+	SELECT * FROM posts WHERE parent_id = %ld ORDER BY time ASC;
+ */
+
 static char *sql_rowcount(const char *str)
 {
 	/* rewrites SQL statements to fetch row count instead */
 	static const char *ins = "COUNT(*)";
-	char *out = (char *) malloc(sizeof(char) * strlen(str) + strlen(ins) + 1);
+	static const unsigned offset = static_size(ins);
+	char *out = (char *) malloc(sizeof(char) * strlen(str) + offset + 1);
 	unsigned i, j = 0;
 	for (i = 0; str[i]; i++)
 	{
 		if (str[i] == '*')
 		{
-			memcpy(&out[j], ins, strlen(ins));
-			j += strlen(ins);
+			memcpy(&out[j], ins, offset);
+			j += offset;
 		}
 		else
 			out[j++] = str[i];
@@ -52,13 +57,14 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 		res->arr[i].parent_id = sqlite3_column_int(stmt, 1);
 		res->arr[i].id = sqlite3_column_int(stmt, 2);
 		res->arr[i].time = sqlite3_column_int(stmt, 3);
-		res->arr[i].options = (unsigned) sqlite3_column_int(stmt, 4);
-		res->arr[i].user_priv = (unsigned) sqlite3_column_int(stmt, 5);
+		res->arr[i].options = (unsigned char) sqlite3_column_int(stmt, 4);
+		res->arr[i].user_priv = (unsigned char) sqlite3_column_int(stmt, 5);
 		res->arr[i].del_pass = strdup((char *) sqlite3_column_text(stmt, 6));
 		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 7));
 		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 8));
 		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
-		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 10));
+		res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
+		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
 	}
 	sqlite3_finalize(stmt);
 }
@@ -80,13 +86,14 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 		res->arr[i].parent_id = sqlite3_column_int(stmt, 1);
 		res->arr[i].id = sqlite3_column_int(stmt, 2);
 		res->arr[i].time = sqlite3_column_int(stmt, 3);
-		res->arr[i].options = (unsigned) sqlite3_column_int(stmt, 4);
-		res->arr[i].user_priv = (unsigned) sqlite3_column_int(stmt, 5);
+		res->arr[i].options = (unsigned char) sqlite3_column_int(stmt, 4);
+		res->arr[i].user_priv = (unsigned char) sqlite3_column_int(stmt, 5);
 		res->arr[i].del_pass = strdup((char *) sqlite3_column_text(stmt, 6));
 		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 7));
 		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 8));
 		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
-		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 10));
+		res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
+		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
 		if (err == SQLITE_DONE) /* early exit */
 		{
 			res->count = i;
@@ -110,6 +117,7 @@ void res_free(struct resource *res)
 				free(res->arr[i].name);
 			if (res->arr[i].trip)
 				free(res->arr[i].trip);
+			free(res->arr[i].subject);
 			free(res->arr[i].comment);
 		}
 		free(res->arr);
