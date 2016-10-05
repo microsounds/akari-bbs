@@ -67,8 +67,8 @@ INSERT INTO boards VALUES
 INSERT INTO threads VALUES ("test", 1, 0);
 
 INSERT INTO posts VALUES
-("test", 1, 1, 1471893064, 0, 1, "dummy", "192.168.1.1", NULL, NULL, "This is a sample comment!"),
-("test", 1, 2, 1371293064, 0, 1, "dummy", "127.0.0.1", NULL, NULL, "This is comment #2"),
-("test", 1, 3, 1271493064, 0, 1, "dummy", "39.39.39.39", NULL, NULL, "Another comment."),
-("test", 1, 4, 1171892064, 0, 1, "dummy", "1.1.1.1", NULL, NULL, "This board sucks, lol."),
-("test", 1, 5, 1471813064, 0, 1, "dummy", "2.2.2.2", NULL, NULL, "dickbutt");
+("test", 1, 1, 1471893064, 0, 1, "dummy", "192.168.1.1", NULL, NULL, NULL, "This is a sample comment!"),
+("test", 1, 2, 1371293064, 0, 1, "dummy", "127.0.0.1", NULL, NULL, NULL, "This is comment #2"),
+("test", 1, 3, 1271493064, 0, 1, "dummy", "39.39.39.39", NULL, NULL, NULL, "Another comment."),
+("test", 1, 4, 1171892064, 0, 1, "dummy", "1.1.1.1", NULL, NULL, NULL, "This board sucks, lol."),
+("test", 1, 5, 1471813064, 0, 1, "dummy", "2.2.2.2", NULL, NULL, NULL, "dickbutt");

@@ -44,6 +44,7 @@ char *tripcode_hash(const char *pass);
 	#define static_assert(expr)
 #endif
 #define static_size(p) (sizeof(p) / sizeof(*p))
+#define abort_now(msg) { fprintf(stdout, msg); fflush(stdout); exit(1); }
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define each(i, n) (i = 0; i < (n); i++)
 
