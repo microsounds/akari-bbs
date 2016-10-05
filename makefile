@@ -34,7 +34,7 @@ release: clean all
 
 # target: clean - reset working directory
 clean:
-	rm -rf $(OUTPUT) $(OBJ)/
+	rm -rf $(OBJ)/ $(OUTPUT)
 
 # target: help - display available options
 help:
