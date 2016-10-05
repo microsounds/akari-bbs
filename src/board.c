@@ -11,7 +11,7 @@
 
 /*
  * board.c
- * user interface / database fetch
+ * end user interface
  */
 
 const char *const header[] = {
@@ -21,7 +21,6 @@ const char *const header[] = {
 "<head>"
 	"<title>Akari BBS</title>"
 	"<meta charset=\"UTF-8\" />"
-	"<meta name=\"description\" content=\"akari-bbs is a in-development lightweight messageboard system designed around transient communication.\" />"
 	"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
 	"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
 	"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
@@ -61,6 +60,7 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
 	- decouple board.cgi from submit.cgi
+	- all fetchers must now account for board id
 	-
 	- insert post number into localStorage to emulate (You) quotes
 	- add admin panel w/ login
@@ -110,10 +110,10 @@ int db_insert(sqlite3 *db, struct post *cm)
 	/* insert new post into database */
 	cm->id = db_total(db) + 1;
 	cm->time = time(NULL);
-	char *insert = (char *) malloc(sizeof(char) * strlen(cm->text) + 1000);
+	char *insert = (char *) malloc(sizeof(char) * strlen(cm->comment) + 1000);
 	static const char *mandatory =
 	"INSERT INTO comments(id, time, ip, text) VALUES(%ld, %ld, \"%s\", \"%s\");";
-	sprintf(insert, mandatory, cm->id, cm->time, cm->ip, cm->text);
+	sprintf(insert, mandatory, cm->id, cm->time, cm->ip, cm->comment);
 	int err = db_transaction(db, insert);
 	if (cm->name) /* insert optional fields if any */
 	{
@@ -150,87 +150,11 @@ int post_cooldown(sqlite3 *db, const char *ip_addr)
 			break;
 		}
 	}
-	res_freeup(&res);
+	res_free(&res);
 	return COOLDOWN_SEC - timer;
 }
 
 /* stop here */
-
-char *sql_rowcount(const char *str)
-{
-	/* rewrites SQL statements to fetch row count instead */
-	static const char *ins = "COUNT(*)";
-	char *out = (char *) malloc(sizeof(char) * strlen(str) + strlen(ins) + 1);
-	unsigned i, j = 0;
-	for (i = 0; str[i]; i++)
-	{
-		if (str[i] == '*')
-		{
-			memcpy(&out[j], ins, strlen(ins));
-			j += strlen(ins);
-		}
-		else
-			out[j++] = str[i];
-	}
-	out[j] = '\0';
-	return out;
-}
-
-void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
-{
-	/* fetch requested SQL results into memory
-	 * this automated version is intended for COUNT(*) compatible statements
-	 */
-	sqlite3_stmt *stmt;
-	char *row_count = sql_rowcount(sql); /* how many rows? */
-	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	res->count = sqlite3_column_int(stmt, 0);
-	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
-	sqlite3_finalize(stmt);
-	free(row_count);
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
-	unsigned i;
-	for (i = 0; i < res->count; i++)
-	{
-		sqlite3_step(stmt);
-		res->arr[i].id = sqlite3_column_int(stmt, 0);
-		res->arr[i].time = sqlite3_column_int(stmt, 1);
-		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
-		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 3));
-		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 4));
-		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 5));
-	}
-	sqlite3_finalize(stmt);
-}
-
-void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
-{
-	/* fetch requested SQL results into memory
-	 * this manual version is intended for LIMIT/OFFSET statements ONLY
-	 */
-	sqlite3_stmt *stmt;
-	res->count = limit; /* user-provided row count */
-	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
-	unsigned i;
-	for (i = 0; i < res->count; i++)
-	{
-		int err = sqlite3_step(stmt);
-		res->arr[i].id = sqlite3_column_int(stmt, 0);
-		res->arr[i].time = sqlite3_column_int(stmt, 1);
-		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 2));
-		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 3));
-		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 4));
-		res->arr[i].text = strdup((char *) sqlite3_column_text(stmt, 5));
-		if (err == SQLITE_DONE) /* early exit */
-		{
-			res->count = i;
-			break;
-		}
-	}
-	sqlite3_finalize(stmt);
-}
 
 /* NOTES:
  * on higher optmization levels (-O2), GCC will introduce false positive
@@ -390,15 +314,15 @@ char *format_comment(char **loc)
 
 void res_display(struct resource *res)
 {
-	/* display SQL results stored in memory */
+	/* print all post data stored in memory */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
 		/* use default name if not provided */
-		const char *name = (!res->arr[i].name) ? default_name : res->arr[i].name;
+		const char *name = (!res->arr[i].name) ? DEFAULT_NAME : res->arr[i].name;
 		const long id = res->arr[i].id; /* post id */
-		enquote_comment(&res->arr[i].text, id); /* reformat comment string */
-		const char *comment = format_comment(&res->arr[i].text);
+		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
+		const char *comment = format_comment(&res->arr[i].comment);
 		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
@@ -413,24 +337,6 @@ void res_display(struct resource *res)
 		fprintf(stdout, "</span>");
 		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
 		fprintf(stdout, "</div><br/>");
-	}
-}
-
-void res_freeup(struct resource *res)
-{
-	if (res->count)
-	{
-		unsigned i;
-		for (i = 0; i < res->count; i++)
-		{
-			if (res->arr[i].name)
-				free(res->arr[i].name);
-			if (res->arr[i].trip)
-				free(res->arr[i].trip);
-			free(res->arr[i].ip);
-			free(res->arr[i].text);
-		}
-		free(res->arr);
 	}
 }
 
@@ -475,7 +381,7 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		res_display(&res);
 		display_controls(limit, offset, res.count);
 	}
-	res_freeup(&res);
+	res_free(&res);
 }
 
 int get_option(const char *get_str, const char *option)
@@ -505,13 +411,13 @@ int main(void)
 	srand(time(NULL));
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
-	if (sqlite3_open_v2(database_loc, &db, 2, NULL))
+	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL))
 	{
 		fprintf(stdout, "<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 		return 1;
 	}
 	fprintf(stdout, "%s", header[0]); /* head */
-	fprintf(stdout, header[1], banner_loc, rand() % BANNER_COUNT); /* banner */
+	fprintf(stdout, header[1], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
 	fprintf(stdout, "%s", header[2]); /* post box */
 
 	char *is_cgi = getenv("REQUEST_METHOD"); /* is this a CGI environment? */
@@ -536,20 +442,20 @@ int main(void)
 		if (cm.name)
 			strip_whitespace(utf8_rewrite(cm.name));
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
-		cm.text = query_search(&query, "comment"); /* comment body */
-		if (cm.text)
-			strip_whitespace(utf8_rewrite(cm.text));
+		cm.comment = query_search(&query, "comment"); /* comment body */
+		if (cm.comment)
+			strip_whitespace(utf8_rewrite(cm.comment));
 		cm.ip = getenv("REMOTE_ADDR");
-		if (cm.text)
+		if (cm.comment)
 		{
 			int name_count = (!cm.name) ? 0 : utf8_charcount(cm.name);
-			int text_count = utf8_charcount(cm.text);
+			int text_count = utf8_charcount(cm.comment);
 			if (cm.name) /* prevent XSS attempts */
 				xss_sanitize(&cm.name);
-			xss_sanitize(&cm.text);
+			xss_sanitize(&cm.comment);
 			int timer = post_cooldown(db, cm.ip); /* user flooding? */
 
-			if (spam_filter(cm.text)) /* user spamming? */
+			if (spam_filter(cm.comment)) /* user spamming? */
 				fprintf(stdout, "<h1>This post is spam, please rewrite it.</h1>%s", refresh);
 			else if (timer > 0)
 				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
@@ -577,11 +483,11 @@ int main(void)
 
 		/* footer */
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", ident, REVISION);
+		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", IDENT, REVISION);
 		#ifndef NDEBUG
 			fprintf(stdout, "dev-build ");
 		#endif
-		fprintf(stdout, "<a href=\"%s\">[github]</a> ", repo_url);
+		fprintf(stdout, "<a href=\"%s\">[github]</a> ", REPO_URL);
 		if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
 		fprintf(stdout, "</div>");
 	}

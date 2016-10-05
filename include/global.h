@@ -20,8 +20,8 @@
  */
 
 /* software name */
-const char *ident = "akari-bbs";
-const char *repo_url = "https://github.com/microsounds/akari-bbs";
+#define IDENT "akari-bbs"
+#define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revison no. */
 
 /* global constants */
@@ -29,11 +29,11 @@ const char *repo_url = "https://github.com/microsounds/akari-bbs";
 #define COMMENT_MAX_LENGTH 2000
 #define COOLDOWN_SEC 30
 #define POSTS_PER_PAGE 50
-const char *default_name = "Anonymous";
-const char *database_loc = "db/database.sqlite3";
+#define DEFAULT_NAME "Anonymous"
+#define DATABASE_LOC "db/database.sqlite3"
 
 /* banners */
 #define BANNER_COUNT 625
-const char *banner_loc = "img/banner";
+#define BANNER_LOC "img/banner"
 
 #endif

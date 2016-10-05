@@ -19,7 +19,7 @@ enum post_options {
 	POST_SAGE = (1 << 0)
 };
 
-/* database fetch containers */
+/* database fetch container */
 struct post {
 	char *board_id;
 	long parent_id; /* 0 if parent */
@@ -39,9 +39,8 @@ struct resource {
 	struct post *arr;
 };
 
-/* extern from board.c */
 void res_fetch(sqlite3 *db, struct resource *res, const char *sql);
 void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
-void res_freeup(struct resource *res);
+void res_free(struct resource *res);
 
 #endif

@@ -4,6 +4,7 @@
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
+#include "database.h"
 #include "query.h"
 #include "utf8.h"
 #include "substr.h"
