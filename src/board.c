@@ -10,7 +10,7 @@
 
 /*
  * board.c
- * end user interface and database functionality
+ * user interface / database fetch
  */
 
 /* html */
@@ -95,6 +95,9 @@ struct resource {
 	long count;
 	struct comment *arr;
 };
+
+
+/* this goes in submit.c */
 
 long db_total(sqlite3 *db)
 {
