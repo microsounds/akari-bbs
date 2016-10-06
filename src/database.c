@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sqlite3.h>
 #include "global.h"
 #include "database.h"
@@ -8,12 +9,88 @@
 
 /*
  * database.c
- * database post fetching
+ * database validation, insertion, and retrieval
  */
 
 /*
 	SELECT * FROM posts WHERE parent_id = %ld ORDER BY time ASC;
  */
+
+static int db_retrieval(sqlite3 *db, const char *sql)
+{
+	/* 1-shot SQL SELECT value retrieval
+	 * returns first value from first column
+	 */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	sqlite3_step(stmt);
+	int value = sqlite3_column_int(stmt, 0);
+	sqlite3_finalize(stmt);
+	return value;
+}
+
+int db_validate_board(sqlite3 *db, const char *board_id)
+{
+	/* check if board_id exists */
+	const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
+	unsigned size = strlen(sql) + strlen(board_id);
+	char *cmd = (char *) malloc(sizeof(char) * size + 1);
+	sprintf(cmd, sql, board_id);
+	int exists = db_retrieval(db, cmd);
+	free(cmd);
+	return exists;
+}
+
+int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
+{
+	/* check if post id is a parent post in board_id */
+	const char *sql =
+	"SELECT COUNT(*) FROM threads "
+		"WHERE board_id = \"%s\" AND post_id = %ld;";
+	unsigned size = strlen(sql) + strlen(board_id) + uintlen(id);
+	char *cmd = (char *) malloc(sizeof(char) * size + 1);
+	sprintf(cmd, sql, board_id, id);
+	int exists = db_retrieval(db, cmd);
+	free(cmd);
+	return exists;
+}
+
+long db_total_posts(sqlite3 *db, const char *board_id)
+{
+	/* returns total post count of board_id */
+	const char *sql = "SELECT MAX(id) FROM posts WHERE board_id = \"%s\";";
+	unsigned size = strlen(sql) + strlen(board_id);
+	char *cmd = (char *) malloc(sizeof(char) * size + 1);
+	sprintf(cmd, sql, board_id);
+	int post_count = db_retrieval(db, cmd);
+	free(cmd);
+	return post_count;
+}
+
+long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
+{
+	/* calculates cooldown timer expressed in seconds remaining
+	 * cooldown timer is global across all boards
+	 */
+	const long current_time = time(NULL);
+	const long delta = current_time - COOLDOWN_SEC;
+	long timer = COOLDOWN_SEC;
+	struct resource res;
+	char sql[100]; /* fetch newest posts only */
+	sprintf(sql, "SELECT * FROM posts WHERE time > %ld;", delta);
+	db_resource_fetch(db, &res, sql);
+	int i;
+	for (i = res.count - 1; i >= 0; i--)
+	{
+		if (!strcmp(ip_addr, res.arr[i].ip))
+		{
+			timer = current_time - res.arr[i].time;
+			break;
+		}
+	}
+	db_resource_free(&res);
+	return COOLDOWN_SEC - timer;
+}
 
 static unsigned post_length(struct post *cm)
 {
@@ -103,9 +180,10 @@ static char *sql_rowcount(const char *str)
 	return out;
 }
 
-long res_fetch(sqlite3 *db, struct resource *res, const char *sql)
+long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
-	/* fetch requested SQL results into memory
+	/* fetch requested SQL row matches into memory
+	 * returns number of items fetched
 	 * this automated version is intended for COUNT(*) compatible statements
 	 */
 	sqlite3_stmt *stmt;
@@ -138,9 +216,10 @@ long res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 	return res->count;
 }
 
-long res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
+long db_resource_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 {
-	/* fetch requested SQL results into memory
+	/* fetch requested SQL row matches into memory
+	 * returns number of items fetched
 	 * this manual version is intended for LIMIT/OFFSET statements ONLY
 	 */
 	sqlite3_stmt *stmt;
@@ -173,7 +252,7 @@ long res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 	return res->count;
 }
 
-void res_free(struct resource *res)
+void db_resource_free(struct resource *res)
 {
 	if (res->count)
 	{
@@ -192,4 +271,5 @@ void res_free(struct resource *res)
 		}
 		free(res->arr);
 	}
+	res->count = 0;
 }

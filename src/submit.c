@@ -19,82 +19,6 @@
  * reply mode:  board=a&mode=reply&parent=12345&...
  */
 
-static int db_retrieval(sqlite3 *db, const char *sql)
-{
-	/* 1-shot SQL SELECT value retrieval
-	 * returns first value from first column
-	 */
-	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	int value = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
-	return value;
-}
-
-int db_validate_board(sqlite3 *db, const char *board_id)
-{
-	/* check if board_id exists */
-	const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
-	unsigned size = strlen(sql) + strlen(board_id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id);
-	int exists = db_retrieval(db, cmd);
-	free(cmd);
-	return exists;
-}
-
-int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
-{
-	/* check if post id is a parent post in board_id */
-	const char *sql =
-	"SELECT COUNT(*) FROM threads "
-		"WHERE board_id = \"%s\" AND post_id = %ld;";
-	unsigned size = strlen(sql) + strlen(board_id) + uintlen(id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id, id);
-	int exists = db_retrieval(db, cmd);
-	free(cmd);
-	return exists;
-}
-
-long db_total_posts(sqlite3 *db, const char *board_id)
-{
-	/* returns total post count of board_id */
-	const char *sql = "SELECT MAX(id) FROM posts WHERE board_id = \"%s\";";
-	unsigned size = strlen(sql) + strlen(board_id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id);
-	int post_count = db_retrieval(db, cmd);
-	free(cmd);
-	return post_count;
-}
-
-long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
-{
-	/* calculates cooldown timer expressed in seconds remaining
-	 * cooldown timer is global across all boards
-	 */
-	const long current_time = time(NULL);
-	const long delta = current_time - COOLDOWN_SEC;
-	long timer = COOLDOWN_SEC;
-	struct resource res;
-	char sql[100]; /* fetch newest posts only */
-	sprintf(sql, "SELECT * FROM posts WHERE time > %ld;", delta);
-	res_fetch(db, &res, sql);
-	int i;
-	for (i = res.count - 1; i >= 0; i--)
-	{
-		if (!strcmp(ip_addr, res.arr[i].ip))
-		{
-			timer = current_time - res.arr[i].time;
-			break;
-		}
-	}
-	res_free(&res);
-	return COOLDOWN_SEC - timer;
-}
-
 int main(void)
 {
 	sqlite3 *db;
@@ -121,7 +45,7 @@ int main(void)
 			abort_now("<h2>Empty or abnormal POST request.</h2>");
 	}
 	else
-		abort_now("<h2>Not a POST request.</h2>");
+		abort_now("<h2>Expected a POST request.</h2>");
 
 	/* note:
 	 * cm strings stored in query container
@@ -173,7 +97,7 @@ int main(void)
 		else
 			abort_now("<h2>No parent thread provided.</h2>");
 
-		/* not yet implemented */
+		/* post options not yet implemented */
 		cm.options = 0;
 		cm.user_priv = USER_NORMAL;
 		cm.del_pass = "dummy";

@@ -40,8 +40,19 @@ struct resource {
 	struct post *arr;
 };
 
-long res_fetch(sqlite3 *db, struct resource *res, const char *sql);
-long res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
-void res_free(struct resource *res);
+
+/* validation */
+int db_validate_board(sqlite3 *db, const char *board_id);
+int db_validate_parent(sqlite3 *db, const char *board_id, const long id);
+long db_total_posts(sqlite3 *db, const char *board_id);
+long db_cooldown_timer(sqlite3 *db, const char *ip_addr);
+
+/* insertion */
+int db_post_insert(sqlite3 *db, struct post *cm);
+
+/* resource fetching */
+long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql);
+long db_resource_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
+void db_resource_free(struct resource *res);
 
 #endif
