@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sqlite3.h>
@@ -13,6 +14,73 @@
 /*
 	SELECT * FROM posts WHERE parent_id = %ld ORDER BY time ASC;
  */
+
+static unsigned post_length(struct post *cm)
+{
+	/* get approximate length of all data in struct */
+	unsigned len = 0;
+	len += strlen(cm->board_id);
+	len += uintlen(cm->parent_id);
+	len += uintlen(cm->id);
+	len += uintlen(cm->time);
+	len += uintlen(cm->options);
+	len += uintlen(cm->user_priv);
+	len += strlen(cm->del_pass);
+	len += strlen(cm->ip);
+	len += (!cm->name) ? 0 : strlen(cm->name);
+	len += (!cm->trip) ? 0 : strlen(cm->trip);
+	len += (!cm->subject) ? 0 : strlen(cm->subject);
+	len += strlen(cm->comment);
+	return len;
+}
+
+static int db_transaction(sqlite3 *db, const char *sql)
+{
+	/* 1-shot SQL INSERT transaction
+	 * returns error code
+	 */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	int err = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	return err;
+}
+
+int db_post_insert(sqlite3 *db, struct post *cm)
+{
+	/* insert new post into database */
+	static const char *const sql[] = {
+		/* mandatory fields */
+		"INSERT INTO "
+			"posts(board_id, parent_id, id, time, options, "
+			      "user_priv, del_pass, ip, comment) "
+		"VALUES(\"%s\", %ld, %ld, %ld, %d, %d, \"%s\", \"%s\");",
+		/* subject */
+		"UPDATE posts SET subject = \"%s\" WHERE id = %ld;",
+		/* name */
+		"UPDATE posts SET name = \"%s\" WHERE id = %ld;",
+		/* trip */
+		"UPDATE posts SET trip = \"%s\" WHERE id = %ld;"
+	};
+	unsigned len = post_length(cm);
+	char *insert = (char *) malloc(sizeof(char) * strlen(sql[0]) + len + 1);
+	sprintf(insert, sql[0], cm->board_id, cm->parent_id, cm->id, cm->time,
+	        cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment);
+	int err = db_transaction(db, insert);
+
+	/* optional fields, if any */
+	char *option[] = { cm->subject, cm->name, cm->trip };
+	unsigned i;
+	for (i = 0; i < static_size(option); i++)
+	{
+		if (option[i])
+		{
+			sprintf(insert, sql[i+1], option[i], cm->id);
+			err = db_transaction(db, insert);
+		}
+	}
+	return err;
+}
 
 static char *sql_rowcount(const char *str)
 {
@@ -35,7 +103,7 @@ static char *sql_rowcount(const char *str)
 	return out;
 }
 
-void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
+long res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
 	/* fetch requested SQL results into memory
 	 * this automated version is intended for COUNT(*) compatible statements
@@ -67,9 +135,10 @@ void res_fetch(sqlite3 *db, struct resource *res, const char *sql)
 		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
 	}
 	sqlite3_finalize(stmt);
+	return res->count;
 }
 
-void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
+long res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 {
 	/* fetch requested SQL results into memory
 	 * this manual version is intended for LIMIT/OFFSET statements ONLY
@@ -101,13 +170,14 @@ void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 		}
 	}
 	sqlite3_finalize(stmt);
+	return res->count;
 }
 
 void res_free(struct resource *res)
 {
 	if (res->count)
 	{
-		unsigned i;
+		long i;
 		for (i = 0; i < res->count; i++)
 		{
 			free(res->arr[i].board_id);

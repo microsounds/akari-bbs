@@ -40,8 +40,8 @@ struct resource {
 	struct post *arr;
 };
 
-void res_fetch(sqlite3 *db, struct resource *res, const char *sql);
-void res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
+long res_fetch(sqlite3 *db, struct resource *res, const char *sql);
+long res_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
 void res_free(struct resource *res);
 
 #endif

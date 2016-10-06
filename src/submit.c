@@ -1,14 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
 #include "database.h"
 #include "query.h"
 #include "utf8.h"
-#include "substr.h"
 
 /*
  * [core functionality]
@@ -21,19 +19,27 @@
  * reply mode:  board=a&mode=reply&parent=12345&...
  */
 
+static int db_retrieval(sqlite3 *db, const char *sql)
+{
+	/* 1-shot SQL SELECT value retrieval
+	 * returns first value from first column
+	 */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	sqlite3_step(stmt);
+	int value = sqlite3_column_int(stmt, 0);
+	sqlite3_finalize(stmt);
+	return value;
+}
+
 int db_validate_board(sqlite3 *db, const char *board_id)
 {
 	/* check if board_id exists */
-	sqlite3_stmt *stmt;
-	int exists = 0;
 	const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
 	unsigned size = strlen(sql) + strlen(board_id);
 	char *cmd = (char *) malloc(sizeof(char) * size + 1);
 	sprintf(cmd, sql, board_id);
-	sqlite3_prepare_v2(db, cmd, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	exists = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
+	int exists = db_retrieval(db, cmd);
 	free(cmd);
 	return exists;
 }
@@ -41,37 +47,52 @@ int db_validate_board(sqlite3 *db, const char *board_id)
 int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
 {
 	/* check if post id is a parent post in board_id */
-	sqlite3_stmt *stmt;
-	unsigned exists = 0;
 	const char *sql =
 	"SELECT COUNT(*) FROM threads "
 		"WHERE board_id = \"%s\" AND post_id = %ld;";
-	unsigned size = strlen(sql) + strlen(board_id) + (sizeof(id) * CHAR_BIT);
+	unsigned size = strlen(sql) + strlen(board_id) + uintlen(id);
 	char *cmd = (char *) malloc(sizeof(char) * size + 1);
 	sprintf(cmd, sql, board_id, id);
-	sqlite3_prepare_v2(db, cmd, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	exists = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
+	int exists = db_retrieval(db, cmd);
 	free(cmd);
 	return exists;
 }
 
 long db_total_posts(sqlite3 *db, const char *board_id)
 {
-	/* returns the total post count of board_id */
-	sqlite3_stmt *stmt;
-	long count = 0;
+	/* returns total post count of board_id */
 	const char *sql = "SELECT MAX(id) FROM posts WHERE board_id = \"%s\";";
 	unsigned size = strlen(sql) + strlen(board_id);
 	char *cmd = (char *) malloc(sizeof(char) * size + 1);
 	sprintf(cmd, sql, board_id);
-	sqlite3_prepare_v2(db, cmd, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	count = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
+	int post_count = db_retrieval(db, cmd);
 	free(cmd);
-	return count;
+	return post_count;
+}
+
+long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
+{
+	/* calculates cooldown timer expressed in seconds remaining
+	 * cooldown timer is global across all boards
+	 */
+	const long current_time = time(NULL);
+	const long delta = current_time - COOLDOWN_SEC;
+	long timer = COOLDOWN_SEC;
+	struct resource res;
+	char sql[100]; /* fetch newest posts only */
+	sprintf(sql, "SELECT * FROM posts WHERE time > %ld;", delta);
+	res_fetch(db, &res, sql);
+	int i;
+	for (i = res.count - 1; i >= 0; i--)
+	{
+		if (!strcmp(ip_addr, res.arr[i].ip))
+		{
+			timer = current_time - res.arr[i].time;
+			break;
+		}
+	}
+	res_free(&res);
+	return COOLDOWN_SEC - timer;
 }
 
 int main(void)
@@ -88,7 +109,7 @@ int main(void)
 	if (!strcmp(request, "POST"))
 	{
 		unsigned POST_len = atoi(getenv("CONTENT_LENGTH"));
-		if (POST_len > 0 || POST_len < MAX_POST_PAYLOAD)
+		if (POST_len > 0 && POST_len < POST_MAX_PAYLOAD)
 		{
 			char *POST_data = (char *) malloc(sizeof(char) * POST_len + 1);
 			fread(POST_data, POST_len, 1, stdin);
@@ -115,7 +136,7 @@ int main(void)
 			strip_whitespace(utf8_rewrite(cm.board_id));
 			xss_sanitize(&cm.board_id); /* scrub */
 			if (!db_validate_board(db, cm.board_id))
-				abort_now("<h2>Invalid board identifier.</h2>");
+				abort_now("<h2>Specified board doesn't exist.</h2>");
 		}
 		else
 			abort_now("<h2>No board provided.</h2>");
@@ -144,7 +165,7 @@ int main(void)
 			char *s = parent_str;
 			while (*++s) /* is numerical string? */
 				if (*s < '0' || *s > '9')
-					abort_now("<h2>Invalid parent thread.</h2>");
+					abort_now("<h2>Malformed parent thread id.</h2>");
 			cm.parent_id = atoi(parent_str);
 			if (!db_validate_parent(db, cm.board_id, cm.parent_id))
 				abort_now("<h2>Specified thread doesn't exist.</h2>");
@@ -167,6 +188,9 @@ int main(void)
 		if (cm.subject)
 			strip_whitespace(utf8_rewrite(cm.subject));
 		cm.comment = query_search(&query, "comment"); /* comment body */
+		
+		/* continue */
+		
 		query_free(&query);
 	}
 	sqlite3_close(db);

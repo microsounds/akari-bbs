@@ -15,6 +15,9 @@
  * messageboard user interface
  */
 
+
+/* html goes in separate templates.h / templates.c */
+
 const char *const header[] = {
 /* head */
 "<!DOCTYPE html>"
@@ -101,7 +104,7 @@ long db_total(sqlite3 *db)
 
 int db_transaction(sqlite3 *db, const char *sql)
 {
-	/* execute arbitrary SQL on the database */
+	/* write SQL transaction */
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	int err = sqlite3_step(stmt);

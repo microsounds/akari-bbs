@@ -25,11 +25,16 @@
 #define REVISION 14 /* revison no. */
 
 /* global constants */
+#define POST_MAX_PAYLOAD 10000
+#define MAX_ACTIVE_THREADS 150
+#define THREADS_PER_PAGE 15
 #define NAME_MAX_LENGTH 75
 #define COMMENT_MAX_LENGTH 2000
 #define COOLDOWN_SEC 30
+
+/* deprecated xxx */
 #define POSTS_PER_PAGE 50
-#define MAX_POST_PAYLOAD 10000
+
 #define DEFAULT_NAME "Anonymous"
 #define DATABASE_LOC "db/database.sqlite3"
 

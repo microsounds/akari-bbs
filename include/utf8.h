@@ -21,6 +21,7 @@ enum format_tag {
 };
 
 /* string library */
+int uintlen(unsigned long n);
 char *strdup(const char *str);
 char *strstr_r(const char *haystack, const char *needle);
 
@@ -38,7 +39,6 @@ char *tripcode_pass(char **nameptr);
 char *tripcode_hash(const char *pass);
 
 /* misc macros */
-
 #ifndef NDEBUG
 	#define static_assert(expr) typedef char STATIC_ASSERT_FAIL [(expr)?1:-1]
 #else
