@@ -37,4 +37,7 @@
 #define BANNER_COUNT 625
 #define BANNER_LOC "img/banner"
 
+/* error reporting */
+#define abort_now(msg) do { fprintf(stdout, msg); fflush(stdout); exit(1); } while (0)
+
 #endif
