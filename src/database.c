@@ -257,7 +257,7 @@ void db_resource_free(struct resource *res)
 {
 	if (res->count)
 	{
-		long i;
+		unsigned i;
 		for (i = 0; i < res->count; i++)
 		{
 			free(res->arr[i].board_id);
