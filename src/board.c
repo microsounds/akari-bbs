@@ -15,7 +15,6 @@
  * messageboard user interface
  */
 
-
 /* html goes in separate templates.h / templates.c */
 
 const char *const header[] = {
@@ -138,7 +137,7 @@ int db_insert(sqlite3 *db, struct post *cm)
 	return err;
 }
 
-int post_cooldown(sqlite3 *db, const char *ip_addr)
+int db_post_cooldown(sqlite3 *db, const char *ip_addr)
 {
 	/* calculates cooldown timer expressed in seconds remaining */
 	const long current_time = time(NULL);
@@ -147,7 +146,7 @@ int post_cooldown(sqlite3 *db, const char *ip_addr)
 	struct resource res;
 	char sql[100]; /* fetch newest posts only */
 	sprintf(sql, "SELECT * FROM comments WHERE time > %ld;", delta);
-	res_fetch(db, &res, sql);
+	db_resource_fetch(db, &res, sql);
 	int i;
 	for (i = res.count - 1; i >= 0; i--)
 	{
@@ -157,7 +156,7 @@ int post_cooldown(sqlite3 *db, const char *ip_addr)
 			break;
 		}
 	}
-	res_free(&res);
+	db_resource_free(&res);
 	return COOLDOWN_SEC - timer;
 }
 
@@ -375,7 +374,7 @@ void display_posts(sqlite3 *db, int limit, int offset)
 	char select[200];
 	static const char *sql = "SELECT * FROM comments ORDER BY id DESC LIMIT %d OFFSET %d;";
 	sprintf(select, sql, limit, offset);
-	res_fetch_specific(db, &res, select, limit);
+	db_resource_fetch_specific(db, &res, select, limit);
 	if (!res.count)
 		fprintf(stdout, "<h2>There aren't that many posts here.</h2>");
 	else
@@ -388,7 +387,7 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		res_display(&res);
 		display_controls(limit, offset, res.count);
 	}
-	res_free(&res);
+	db_resource_free(&res);
 }
 
 int get_option(const char *get_str, const char *option)
@@ -458,7 +457,7 @@ int main(void)
 			if (cm.name) /* prevent XSS attempts */
 				xss_sanitize(&cm.name);
 			xss_sanitize(&cm.comment);
-			int timer = post_cooldown(db, cm.ip); /* user flooding? */
+			int timer = db_post_cooldown(db, cm.ip); /* user flooding? */
 
 			if (spam_filter(cm.comment)) /* user spamming? */
 				fprintf(stdout, "<h1>This post is spam, please rewrite it.</h1>%s", refresh);

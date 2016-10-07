@@ -65,10 +65,6 @@ int main(void)
 		else
 			abort_now("<h2>No board provided.</h2>");
 
-		/* MODES
-		 * thread mode - parent_id is same as post id
-		 * reply mode - parent_id is provided by the client
-		 */
 		const char *mode_str = query_search(&query, "mode"); /* get mode */
 		enum submit_mode { THREAD_MODE, REPLY_MODE } mode;
 		if (!mode_str)
@@ -80,6 +76,10 @@ int main(void)
 		else
 			abort_now("<h2>Invalid submit mode.</h2>");
 
+		/* MODES
+		 * thread mode - parent_id is same as post id
+		 * reply mode - parent_id is provided by the client
+		 */
 		cm.id = db_total_posts(db, cm.board_id) + 1; /* assign id/parent_id */
 		char *parent_str = query_search(&query, "parent");
 		if (mode == THREAD_MODE)

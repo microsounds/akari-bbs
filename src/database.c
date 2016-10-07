@@ -146,16 +146,17 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	int err = db_transaction(db, insert);
 
 	/* optional fields, if any */
-	char *option[] = { cm->subject, cm->name, cm->trip };
+	const char *field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
-	for (i = 0; i < static_size(option); i++)
+	for (i = 0; i < static_size(field); i++)
 	{
-		if (option[i])
+		if (field[i])
 		{
-			sprintf(insert, sql[i+1], option[i], cm->id);
+			sprintf(insert, sql[i+1], field[i], cm->id);
 			err = db_transaction(db, insert);
 		}
 	}
+	free(insert);
 	return err;
 }
 

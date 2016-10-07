@@ -36,7 +36,7 @@ struct post {
 };
 
 struct resource {
-	long count;
+	unsigned count;
 	struct post *arr;
 };
 
