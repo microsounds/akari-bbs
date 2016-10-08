@@ -16,6 +16,18 @@
 	SELECT * FROM posts WHERE parent_id = %ld ORDER BY time ASC;
  */
 
+static int db_transaction(sqlite3 *db, const char *sql)
+{
+	/* 1-shot SQL INSERT/UPDATE transaction
+	 * returns error code
+	 */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	int err = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	return err;
+}
+
 static int db_retrieval(sqlite3 *db, const char *sql)
 {
 	/* 1-shot SQL SELECT value retrieval
@@ -45,7 +57,7 @@ int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
 {
 	/* check if post id is a parent post in board_id */
 	const char *sql =
-	"SELECT COUNT(*) FROM threads "
+	"SELECT COUNT(*) FROM active_threads "
 		"WHERE board_id = \"%s\" AND post_id = %ld;";
 	unsigned size = strlen(sql) + strlen(board_id) + uintlen(id);
 	char *cmd = (char *) malloc(sizeof(char) * size + 1);
@@ -111,18 +123,6 @@ static unsigned post_length(struct post *cm)
 	return len;
 }
 
-static int db_transaction(sqlite3 *db, const char *sql)
-{
-	/* 1-shot SQL INSERT transaction
-	 * returns error code
-	 */
-	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-	int err = sqlite3_step(stmt);
-	sqlite3_finalize(stmt);
-	return err;
-}
-
 int db_post_insert(sqlite3 *db, struct post *cm)
 {
 	/* insert new post into database */
@@ -146,7 +146,7 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	int err = db_transaction(db, insert);
 
 	/* optional fields, if any */
-	const char *field[] = { cm->subject, cm->name, cm->trip };
+	const char *const field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
 	for (i = 0; i < static_size(field); i++)
 	{
@@ -158,6 +158,38 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	}
 	free(insert);
 	return err;
+}
+
+int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
+{
+	/* bump parent thread by updating it's last_bump timestamp
+	 * returns non-zero if thread bumped
+	 */
+	static const char *const sql[] = {
+		/* reply count */
+		"SELECT COUNT(*) FROM posts "
+			"WHERE board_id = \"%s\" AND parent_id = %ld",
+		/* bump thread */
+		"UPDATE active_threads SET last_bump = %ld "
+			"WHERE board_id = \"%s\" AND post_id = %ld;"
+	};
+	int bumped = 0;
+	if (db_validate_parent(db, board_id, id)) /* valid thread? */
+	{
+		unsigned size = strlen(sql[0]) + strlen(board_id) + uintlen(id);
+		char *cmd = (char *) malloc(sizeof(char) * size + 1);
+		sprintf(cmd, sql[0], board_id, id);
+		if (db_retrieval(db, cmd) <= THREAD_BUMP_LIMIT) /* eligible? */
+		{
+			const long tm = time(NULL);
+			size = strlen(sql[1]) + strlen(board_id) + uintlen(id);
+			cmd = (char *) realloc(cmd, size + uintlen(tm) + 1);
+			sprintf(cmd, sql[1], tm, board_id, id);
+			bumped = !db_transaction(db, cmd);
+		}
+		free(cmd);
+	}
+	return bumped;
 }
 
 static char *sql_rowcount(const char *str)

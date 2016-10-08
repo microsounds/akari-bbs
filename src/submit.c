@@ -97,9 +97,13 @@ int main(void)
 		else
 			abort_now("<h2>No parent thread provided.</h2>");
 
-		/* post options not yet implemented */
-		cm.options = 0;
-		cm.user_priv = USER_NORMAL;
+		const char *opt = query_search(&query, "options"); /* post options */
+		if (opt)
+			cm.options |= (!strstr(opt, "sage")) ? 0 : POST_SAGE;
+
+		/* user privilage options (not implemented) */
+		cm.user_priv |= USER_NORMAL;
+		/* deletion password (not implemented) */
 		cm.del_pass = "dummy";
 
 		cm.time = time(NULL); /* time */
@@ -112,9 +116,18 @@ int main(void)
 		if (cm.subject)
 			strip_whitespace(utf8_rewrite(cm.subject));
 		cm.comment = query_search(&query, "comment"); /* comment body */
-		
 		/* continue */
-		
+
+		/* insert post into db
+		 * thread mode:
+		 * if posts in board_id > MAX_ACTIVE_THREADS
+		 * find thread with oldest last_bump timestamp in active_threads and prune
+		 * delete all archive posts older than ARCHIVE_SEC
+
+		*   vv done vv
+		 * reply mode:
+		 * if !(cm.options & POST_SAGE)	db_bump_parent(db, cm.board_id, cm.parent_id);
+		 */
 		query_free(&query);
 	}
 	sqlite3_close(db);

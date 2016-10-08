@@ -31,13 +31,14 @@ CREATE TABLE boards (
 	id        TEXT    PRIMARY KEY,
 	name      TEXT    NOT NULL,
 	desc      TEXT    NOT NULL,
-	status    INTEGER NOT NULL /* board_status flags */
+	status    INTEGER NOT NULL  /* board_status flags */
 );
 
-CREATE TABLE threads (
+CREATE TABLE active_threads (
 	board_id  TEXT    NOT NULL,
 	post_id   INTEGER NOT NULL,
-	status    INTEGER NOT NULL /* thread_status flags */
+	last_bump INTEGER NOT NULL,
+	status    INTEGER NOT NULL  /* thread_status flags */
 );
 
 CREATE TABLE archived_threads (
@@ -64,7 +65,7 @@ INSERT INTO boards VALUES
 ("test", "Dummy Board", "Dummy board for feature testing.", 0),
 ("meta", "Akari-BBS Discussion", "Meta Discussion goes here.", 0);
 
-INSERT INTO threads VALUES ("test", 1, 0);
+INSERT INTO active_threads VALUES ("test", 1, 1, 0);
 
 INSERT INTO posts VALUES
 ("test", 1, 1, 1471893064, 0, 1, "dummy", "192.168.1.1", NULL, NULL, NULL, "This is a sample comment!"),
