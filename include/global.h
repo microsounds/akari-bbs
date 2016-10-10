@@ -24,16 +24,19 @@
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revison no. */
 
-/* global constants */
-#define POST_MAX_PAYLOAD 10000
+/* thread constants */
 #define THREAD_BUMP_LIMIT 350
 #define MAX_ACTIVE_THREADS 150
 #define THREADS_PER_PAGE 15
+#define ARCHIVE_SEC ((60 * 60 * 24) * 30) /* 1 mo */
+
+/* user constants */
+#define COOLDOWN_SEC 30
+#define MAX_THREADS_PER_IP 5
+#define POST_MAX_PAYLOAD 10000
 #define NAME_MAX_LENGTH 75
 #define SUBJECT_MAX_LENGTH 75
 #define COMMENT_MAX_LENGTH 2000
-#define ARCHIVE_SEC ((60 * 60 * 24) * 30) /* 1 mo */
-#define COOLDOWN_SEC 30
 
 /* deprecated xxx */
 #define POSTS_PER_PAGE 50

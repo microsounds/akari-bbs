@@ -16,6 +16,10 @@
  */
 
 /* html goes in separate templates.h / templates.c */
+/* input form:
+	just give all the inputs a class and set them to width: 100%?
+ */
+
 
 const char *const header[] = {
 /* head */

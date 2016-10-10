@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
@@ -13,8 +14,67 @@
  */
 
 /*
-	SELECT * FROM posts WHERE parent_id = %ld ORDER BY time ASC;
+	frontpage order
+	SELECT post_id from active_threads WHERE board_id = \"%s\" ORDER BY last_bump DESC;
+
+	thread mode
+	SELECT * FROM posts WHERE board_id = \"%s\" AND parent_id = %ld ORDER BY time ASC:
  */
+
+static char *sql_generate(const char *fmt, ...)
+{
+	/* auto-fills SQL statements using sprintf args */
+	va_list args;
+	va_start(args, fmt);
+	unsigned size = strlen(fmt);
+	const char *s; long n; /* supported types */
+	const char *f = fmt;
+	do
+	{
+		if (*f == '%')
+		{
+			switch (f[1])
+			{
+				case 's':
+					s = va_arg(args, const char *);
+					size += strlen(s);
+					break;
+				case 'l':
+					n = va_arg(args, const long);
+					size += uintlen(n);
+					break;
+			}
+		}
+	} while (*++f);
+	va_end(args);
+	va_start(args, fmt);
+	char *out = (char *) malloc(sizeof(char) * size + 1);
+	vsprintf(out, fmt, args);
+	va_end(args);
+	return out;
+}
+
+static char *sql_rowcount(const char *str)
+{
+	/* rewrites SQL statements to fetch row count instead */
+	static const char *ins = "COUNT(*)";
+	static const unsigned offset = static_size(ins);
+	char *out = (char *) malloc(sizeof(char) * strlen(str) + offset + 1);
+	unsigned i, j = 0;
+	for (i = 0; str[i]; i++)
+	{
+		if (str[i] == '*')
+		{
+			memcpy(&out[j], ins, offset);
+			j += offset;
+		}
+		else
+			out[j++] = str[i];
+	}
+	out[j] = '\0';
+	return out;
+}
+
 
 static int db_transaction(sqlite3 *db, const char *sql)
 {
@@ -41,13 +101,30 @@ static int db_retrieval(sqlite3 *db, const char *sql)
 	return value;
 }
 
+unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id)
+{
+	/* return board status flags
+	 * if parent_id is provided, thread status flags are returned instead
+	 */
+	static const char *const sql[] = {
+		"SELECT status FROM boards WHERE id = \"%s\";",
+		"SELECT status FROM active_threads "
+			"WHERE board_id = \"%s\" AND post_id = %ld;"
+	};
+	unsigned opt = (id < 0) ? 0 : 1; /* select mode */
+	const char *stmt = sql[opt];
+	char *cmd = (!opt) ? sql_generate(stmt, board_id)
+	                   : sql_generate(stmt, board_id, id);
+	unsigned status = db_retrieval(db, cmd);
+	free(cmd);
+	return status;
+}
+
 int db_validate_board(sqlite3 *db, const char *board_id)
 {
 	/* check if board_id exists */
-	const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
-	unsigned size = strlen(sql) + strlen(board_id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id);
+	static const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
+	char *cmd = sql_generate(sql, board_id);
 	int exists = db_retrieval(db, cmd);
 	free(cmd);
 	return exists;
@@ -56,25 +133,44 @@ int db_validate_board(sqlite3 *db, const char *board_id)
 int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
 {
 	/* check if post id is a parent post in board_id */
-	const char *sql =
+	static const char *sql =
 	"SELECT COUNT(*) FROM active_threads "
 		"WHERE board_id = \"%s\" AND post_id = %ld;";
-	unsigned size = strlen(sql) + strlen(board_id) + uintlen(id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id, id);
+	char *cmd = sql_generate(sql, board_id, id);
 	int exists = db_retrieval(db, cmd);
 	free(cmd);
 	return exists;
 }
 
-long db_total_posts(sqlite3 *db, const char *board_id)
+long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 {
-	/* returns total post count of board_id */
-	const char *sql = "SELECT MAX(id) FROM posts WHERE board_id = \"%s\";";
-	unsigned size = strlen(sql) + strlen(board_id);
-	char *cmd = (char *) malloc(sizeof(char) * size + 1);
-	sprintf(cmd, sql, board_id);
-	int post_count = db_retrieval(db, cmd);
+	/* return parent_id of requested post number
+	 * if post doesn't exist, return 0
+	 */
+	static const char *sql =
+	"SELECT parent_id FROM posts "
+		"WHERE board_id = \"%s\" AND post_id = %ld;";
+	char *cmd = sql_generate(sql, board_id, id);
+	long parent_id = db_retrieval(db, cmd);
+	free(cmd);
+	return parent_id;
+}
+
+long db_total_posts(sqlite3 *db, const char *board_id, const long id)
+{
+	/* returns total post count of board_id
+	 * if parent_id is provided, post count of that thread is returned
+	 */
+	static const char *const sql[] = {
+		"SELECT MAX(id) FROM posts WHERE board_id = \"%s\";",
+		"SELECT COUNT(*) FROM posts "
+			"WHERE board_id = \"%s\" AND parent_id = %ld;"
+	};
+	unsigned opt = (id < 0) ? 0 : 1; /* select mode */
+	const char *stmt = sql[opt];
+	char *cmd = (!opt) ? sql_generate(stmt, board_id)
+	                   : sql_generate(stmt, board_id, id);
+	long post_count = db_retrieval(db, cmd);
 	free(cmd);
 	return post_count;
 }
@@ -192,25 +288,20 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
 	return bumped;
 }
 
-static char *sql_rowcount(const char *str)
+/*
+ * thread mode:
+ * if posts in board_id > MAX_ACTIVE_THREADS
+ * find thread with oldest last_bump timestamp in active_threads and prune
+ * delete all archive posts older than ARCHIVE_SEC
+ */
+
+long db_archive_oldest(sqlite3 *db, const char *board_id)
 {
-	/* rewrites SQL statements to fetch row count instead */
-	static const char *ins = "COUNT(*)";
-	static const unsigned offset = static_size(ins);
-	char *out = (char *) malloc(sizeof(char) * strlen(str) + offset + 1);
-	unsigned i, j = 0;
-	for (i = 0; str[i]; i++)
-	{
-		if (str[i] == '*')
-		{
-			memcpy(&out[j], ins, offset);
-			j += offset;
-		}
-		else
-			out[j++] = str[i];
-	}
-	out[j] = '\0';
-	return out;
+	/* archive parent thread with oldest last_bump timestamp
+	 * deletes all archived threads older than ARCHIVE_SEC
+	 * returns id of pruned thread
+	 */
+	 return 0;
 }
 
 long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)

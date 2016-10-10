@@ -61,6 +61,8 @@ int main(void)
 			xss_sanitize(&cm.board_id); /* scrub */
 			if (!db_validate_board(db, cm.board_id))
 				abort_now("<h2>Specified board doesn't exist.</h2>");
+			if (db_status_flags(db, cm.board_id, -1) & BOARD_LOCKED)
+				abort_now("<h2>This board is locked.<h2>");
 		}
 		else
 			abort_now("<h2>No board provided.</h2>");
@@ -80,7 +82,7 @@ int main(void)
 		 * thread mode - parent_id is same as post id
 		 * reply mode - parent_id is provided by the client
 		 */
-		cm.id = db_total_posts(db, cm.board_id) + 1; /* assign id/parent_id */
+		cm.id = db_total_posts(db, cm.board_id, -1) + 1; /* assign id/parent_id */
 		char *parent_str = query_search(&query, "parent");
 		if (mode == THREAD_MODE)
 			cm.parent_id = cm.id;
@@ -90,9 +92,11 @@ int main(void)
 			while (*++s) /* is numerical string? */
 				if (*s < '0' || *s > '9')
 					abort_now("<h2>Malformed parent thread id.</h2>");
-			cm.parent_id = atoi(parent_str);
+			cm.parent_id = abs(atoi(parent_str));
 			if (!db_validate_parent(db, cm.board_id, cm.parent_id))
 				abort_now("<h2>Specified thread doesn't exist.</h2>");
+			if (db_status_flags(db, cm.board_id, cm.parent_id) & THREAD_LOCKED)
+				abort_now("<h2>This thread is locked.<h2>");
 		}
 		else
 			abort_now("<h2>No parent thread provided.</h2>");
@@ -126,7 +130,8 @@ int main(void)
 
 		*   vv done vv
 		 * reply mode:
-		 * if !(cm.options & POST_SAGE)	db_bump_parent(db, cm.board_id, cm.parent_id);
+		 * if !(cm.options & POST_SAGE)
+		 		db_bump_parent(db, cm.board_id, cm.parent_id);
 		 */
 		query_free(&query);
 	}
