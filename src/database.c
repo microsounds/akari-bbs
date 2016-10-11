@@ -23,7 +23,9 @@
 
 static char *sql_generate(const char *fmt, ...)
 {
-	/* auto-fills SQL statements using sprintf args */
+	/* auto-generate SQL statement using sprintf args
+	 * allocates space for all arguments
+	 */
 	va_list args;
 	va_start(args, fmt);
 	unsigned size = strlen(fmt);
@@ -134,8 +136,8 @@ int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
 {
 	/* check if post id is a parent post in board_id */
 	static const char *sql =
-	"SELECT COUNT(*) FROM active_threads "
-		"WHERE board_id = \"%s\" AND post_id = %ld;";
+		"SELECT COUNT(*) FROM active_threads "
+			"WHERE board_id = \"%s\" AND post_id = %ld;";
 	char *cmd = sql_generate(sql, board_id, id);
 	int exists = db_retrieval(db, cmd);
 	free(cmd);
@@ -148,8 +150,8 @@ long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 	 * if post doesn't exist, return 0
 	 */
 	static const char *sql =
-	"SELECT parent_id FROM posts "
-		"WHERE board_id = \"%s\" AND post_id = %ld;";
+		"SELECT parent_id FROM posts "
+			"WHERE board_id = \"%s\" AND post_id = %ld;";
 	char *cmd = sql_generate(sql, board_id, id);
 	long parent_id = db_retrieval(db, cmd);
 	free(cmd);
@@ -183,10 +185,11 @@ long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
 	const long current_time = time(NULL);
 	const long delta = current_time - COOLDOWN_SEC;
 	long timer = COOLDOWN_SEC;
-	struct resource res;
-	char sql[100]; /* fetch newest posts only */
-	sprintf(sql, "SELECT * FROM posts WHERE time > %ld;", delta);
-	db_resource_fetch(db, &res, sql);
+	struct resource res; /* fetch newest posts only */
+	static const char *sql = "SELECT * FROM posts WHERE time > %ld;";
+	char *cmd = sql_generate(sql, delta);
+	db_resource_fetch(db, &res, cmd);
+	free(cmd);
 	int i;
 	for (i = res.count - 1; i >= 0; i--)
 	{
@@ -198,25 +201,6 @@ long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
 	}
 	db_resource_free(&res);
 	return COOLDOWN_SEC - timer;
-}
-
-static unsigned post_length(struct post *cm)
-{
-	/* get approximate length of all data in struct */
-	unsigned len = 0;
-	len += strlen(cm->board_id);
-	len += uintlen(cm->parent_id);
-	len += uintlen(cm->id);
-	len += uintlen(cm->time);
-	len += uintlen(cm->options);
-	len += uintlen(cm->user_priv);
-	len += strlen(cm->del_pass);
-	len += strlen(cm->ip);
-	len += (!cm->name) ? 0 : strlen(cm->name);
-	len += (!cm->trip) ? 0 : strlen(cm->trip);
-	len += (!cm->subject) ? 0 : strlen(cm->subject);
-	len += strlen(cm->comment);
-	return len;
 }
 
 int db_post_insert(sqlite3 *db, struct post *cm)
@@ -235,24 +219,25 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 		/* trip */
 		"UPDATE posts SET trip = \"%s\" WHERE id = %ld;"
 	};
-	unsigned len = post_length(cm);
-	char *insert = (char *) malloc(sizeof(char) * strlen(sql[0]) + len + 1);
-	sprintf(insert, sql[0], cm->board_id, cm->parent_id, cm->id, cm->time,
-	        cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment);
-	int err = db_transaction(db, insert);
+	char *cmd = sql_generate(sql[0],
+		cm->board_id, cm->parent_id, cm->id, cm->time,
+		cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment
+	);
+	int err = db_transaction(db, cmd);
+	free(cmd);
 
-	/* optional fields, if any */
+	/* optional fields */
 	const char *const field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
 	for (i = 0; i < static_size(field); i++)
 	{
 		if (field[i])
 		{
-			sprintf(insert, sql[i+1], field[i], cm->id);
-			err = db_transaction(db, insert);
+			cmd = sql_generate(sql[i+1], field[i], cm->id);
+			err = db_transaction(db, cmd);
+			free(cmd);
 		}
 	}
-	free(insert);
 	return err;
 }
 
@@ -261,29 +246,18 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
 	/* bump parent thread by updating it's last_bump timestamp
 	 * returns non-zero if thread bumped
 	 */
-	static const char *const sql[] = {
-		/* reply count */
-		"SELECT COUNT(*) FROM posts "
-			"WHERE board_id = \"%s\" AND parent_id = %ld",
-		/* bump thread */
+	static const char *sql =
 		"UPDATE active_threads SET last_bump = %ld "
-			"WHERE board_id = \"%s\" AND post_id = %ld;"
-	};
+			"WHERE board_id = \"%s\" AND post_id = %ld;";
 	int bumped = 0;
 	if (db_validate_parent(db, board_id, id)) /* valid thread? */
 	{
-		unsigned size = strlen(sql[0]) + strlen(board_id) + uintlen(id);
-		char *cmd = (char *) malloc(sizeof(char) * size + 1);
-		sprintf(cmd, sql[0], board_id, id);
-		if (db_retrieval(db, cmd) <= THREAD_BUMP_LIMIT) /* eligible? */
+		if (db_total_posts(db, board_id, id) <= THREAD_BUMP_LIMIT)
 		{
-			const long tm = time(NULL);
-			size = strlen(sql[1]) + strlen(board_id) + uintlen(id);
-			cmd = (char *) realloc(cmd, size + uintlen(tm) + 1);
-			sprintf(cmd, sql[1], tm, board_id, id);
+			char *cmd = sql_generate(sql, time(NULL), board_id, id);
 			bumped = !db_transaction(db, cmd);
+			free(cmd);
 		}
-		free(cmd);
 	}
 	return bumped;
 }

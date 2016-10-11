@@ -15,7 +15,9 @@ enum thread_status {
 	THREAD_LOCKED   = (1 << 1)
 };
 enum post_options {
-	POST_SAGE = (1 << 0)
+	POST_SAGE = (1 << 0),
+	POST_WARN = (1 << 1),
+	POST_BAN  = (1 << 2)
 };
 
 /* database fetch container */
