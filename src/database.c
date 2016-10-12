@@ -24,12 +24,12 @@
 static char *sql_generate(const char *fmt, ...)
 {
 	/* auto-generate SQL statement using sprintf args
-	 * allocates space for all arguments
+	 * allocates space for integer and string arguments only
 	 */
 	va_list args;
 	va_start(args, fmt);
 	unsigned size = strlen(fmt);
-	const char *s; long n; /* supported types */
+	char *s; long n; /* supported types */
 	const char *f = fmt;
 	do
 	{
@@ -37,13 +37,15 @@ static char *sql_generate(const char *fmt, ...)
 		{
 			switch (f[1])
 			{
-				case 's':
-					s = va_arg(args, const char *);
-					size += strlen(s);
-					break;
+				case 'd':
 				case 'l':
-					n = va_arg(args, const long);
+				case 'u':
+					n = va_arg(args, long);
 					size += uintlen(n);
+					break;
+				case 's':
+					s = va_arg(args, char *);
+					size += strlen(s);
 					break;
 			}
 		}
@@ -90,7 +92,7 @@ static int db_transaction(sqlite3 *db, const char *sql)
 	return err;
 }
 
-static int db_retrieval(sqlite3 *db, const char *sql)
+static long db_retrieval(sqlite3 *db, const char *sql)
 {
 	/* 1-shot SQL SELECT value retrieval
 	 * returns first value from first column
@@ -103,9 +105,31 @@ static int db_retrieval(sqlite3 *db, const char *sql)
 	return value;
 }
 
+static unsigned db_array_retrieval(sqlite3 *db, const char *sql, long **loc)
+{
+	/* 1-shot SQL SELECT array retrieval
+	 * retrieves values from first column
+	 * returns number of values stored
+	 */
+	sqlite3_stmt *stmt;
+	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	long *arr = *loc;
+	int err = 0;
+	unsigned i;
+	for (i = 0; err != SQLITE_DONE; i++)
+	{
+		err = sqlite3_step(stmt);
+		arr = (long *) realloc(arr, sizeof(long) * i + 1);
+		arr[i] = sqlite3_column_int(stmt, 0);
+	}
+	sqlite3_finalize(stmt);
+	*loc = arr;
+	return i;
+}
+
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id)
 {
-	/* return board status flags
+	/* returns board status flags
 	 * if parent_id is provided, thread status flags are returned instead
 	 */
 	static const char *const sql[] = {
@@ -269,13 +293,65 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
  * delete all archive posts older than ARCHIVE_SEC
  */
 
-long db_archive_oldest(sqlite3 *db, const char *board_id)
+int db_archive_oldest(sqlite3 *db, const char *board_id)
 {
-	/* archive parent thread with oldest last_bump timestamp
-	 * deletes all archived threads older than ARCHIVE_SEC
-	 * returns id of pruned thread
+	/* archive parent thread(s) with the oldest last_bump timestamps
+	 * delete all archived threads older than expiry date
+	 * returns non-zero if operations performed
 	 */
-	 return 0;
+	static const char *const sql[] = {
+		/* get number of active threads */
+		"SELECT COUNT(*) FROM active_threads WHERE board_id = \"%s\";",
+		/* get post no's of active threads to archive */
+		"SELECT post_id FROM active_threads WHERE board_id = \"%s\" "
+			"ORDER BY last_bump DESC LIMIT %ld OFFSET %ld;",
+		/* archive thread */
+		"INSERT INTO archived_threads VALUES(\"%s\", %ld, %ld);"
+		"DELETE FROM active_threads WHERE board_id = \"%s\" AND post_id = %ld;",
+		/* get post no's of archived threads to delete */
+		"SELECT post_id FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",
+		/* delete archived posts */
+		"DELETE FROM archived_threads WHERE board_id = \"%s\" AND post_id = %ld;"
+		"DELETE FROM posts WHERE board_id = \"%s\" AND parent_id = %ld;"
+	};
+	char *cmd[static_size(sql)] = { 0 }; /* generated SQL storage */
+	long tm = time(NULL);
+	int success = 0;
+	long *post_id = NULL;
+	unsigned i, count;
+
+	cmd[0] = sql_generate(sql[0], board_id); /* move threads to archive */
+	unsigned thread_count = db_retrieval(db, cmd[0]);
+	if (thread_count > MAX_ACTIVE_THREADS)
+	{
+		unsigned diff = abs(thread_count - MAX_ACTIVE_THREADS);
+		cmd[1] = sql_generate(sql[1], board_id, diff, MAX_ACTIVE_THREADS);
+		count = db_array_retrieval(db, cmd[1], &post_id);
+		for (i = 0; i < count; i++)
+		{
+			cmd[2] = sql_generate(sql[2],
+				board_id, post_id[i], tm + ARCHIVE_SEC, /* INSERT */
+				board_id, post_id[i] /* DELETE */
+			);
+			success = !db_transaction(db, cmd[2]);
+			free(cmd[2]); cmd[2] = NULL;
+		}
+		free(post_id); post_id = NULL;
+	}
+	cmd[3] = sql_generate(sql[3], board_id, tm); /* delete archived threads */
+	count = db_array_retrieval(db, cmd[3], &post_id);
+	for (i = 0; i < count; i++)
+	{
+		cmd[4] = sql_generate(sql[4],
+			board_id, post_id[i], /* INSERT */
+			board_id, post_id[i] /* DELETE */
+		);
+		success = !db_transaction(db, cmd[4]);
+		free(cmd[4]); cmd[4] = NULL;
+	}
+	for (i = 0; i < static_size(sql); i++)
+		free((!cmd[i]) ? NULL : cmd[i]);
+	return success;
 }
 
 long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
@@ -364,7 +440,8 @@ void db_resource_free(struct resource *res)
 				free(res->arr[i].name);
 			if (res->arr[i].trip)
 				free(res->arr[i].trip);
-			free(res->arr[i].subject);
+			if (res->arr[i].subject)
+				free(res->arr[i].subject);
 			free(res->arr[i].comment);
 		}
 		free(res->arr);

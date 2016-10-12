@@ -18,8 +18,10 @@ CREATE TABLE moderators (
 
 CREATE TABLE banned_users (
 	ip        TEXT    NOT NULL,
-	cookie    TEXT    NOT NULL,
+	board_id  TEXT    NOT NULL,
+	post_id   INTEGER NOT NULL,
 	reason    TEXT    NOT NULL,
+	cookie    TEXT    NOT NULL,
 	expire    INTEGER NOT NULL,
 );
 
@@ -43,7 +45,8 @@ CREATE TABLE active_threads (
 
 CREATE TABLE archived_threads (
 	board_id  TEXT    NOT NULL,
-	post_id   INTEGER NOT NULL
+	post_id   INTEGER NOT NULL,
+	expiry    INTEGER NOT NULL
 );
 
 CREATE TABLE posts (

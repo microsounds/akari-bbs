@@ -24,6 +24,14 @@
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revison no. */
 
+/* constants */
+#define DEFAULT_NAME "Anonymous"
+#define DATABASE_LOC "db/database.sqlite3"
+
+/* banners */
+#define BANNER_COUNT 625
+#define BANNER_LOC "img/banner"
+
 /* thread constants */
 #define THREAD_BUMP_LIMIT 350
 #define MAX_ACTIVE_THREADS 150
@@ -41,12 +49,6 @@
 /* deprecated xxx */
 #define POSTS_PER_PAGE 50
 
-#define DEFAULT_NAME "Anonymous"
-#define DATABASE_LOC "db/database.sqlite3"
-
-/* banners */
-#define BANNER_COUNT 625
-#define BANNER_LOC "img/banner"
 
 /* error reporting */
 #define abort_now(msg) do { fprintf(stdout, msg); fflush(stdout); exit(1); } while (0)
