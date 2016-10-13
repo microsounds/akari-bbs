@@ -41,7 +41,6 @@ struct resource {
 	struct post *arr;
 };
 
-
 /* validation */
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id);
 int db_validate_board(sqlite3 *db, const char *board_id);

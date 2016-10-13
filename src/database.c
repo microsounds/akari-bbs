@@ -7,6 +7,7 @@
 #include "global.h"
 #include "database.h"
 #include "utf8.h"
+#include "macros.h"
 
 /*
  * database.c
@@ -321,7 +322,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		for (i = 0; i < diff; i++)
 		{
 			cmd[2] = sql_generate(sql[2],
-				board_id, post_id[i], tm + ARCHIVE_SEC,
+				board_id, post_id[i], tm + ARCHIVE_SEC, /* expiration date */
 				board_id, post_id[i]
 			);
 			success = !db_transaction(db, cmd[2]);

@@ -38,14 +38,4 @@ int spam_filter(const char *str);
 char *tripcode_pass(char **nameptr);
 char *tripcode_hash(const char *pass);
 
-/* misc macros */
-#ifndef NDEBUG
-	#define static_assert(expr) typedef char STATIC_ASSERT_FAIL [(expr)?1:-1]
-#else
-	#define static_assert(expr)
-#endif
-#define static_size(p) (sizeof(p) / sizeof(*p))
-#define max(a, b) (((a) > (b)) ? (a) : (b))
-#define each(i, n) (i = 0; i < (n); i++)
-
 #endif

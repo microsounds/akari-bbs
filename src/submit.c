@@ -7,6 +7,7 @@
 #include "database.h"
 #include "query.h"
 #include "utf8.h"
+#include "macros.h"
 
 /*
  * [core functionality]
@@ -54,6 +55,12 @@ int main(void)
 	if (query.count > 0)
 	{
 		struct post cm = { 0 }; /* compose a new post */
+
+		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
+		unsigned timer = db_cooldown_timer(db, cm.ip); /* posting cooldown */
+		if (timer > 0)
+			abort_now_fmt("<h2>Please wait %u more seconds.</h2>", timer);
+
 		cm.board_id = query_search(&query, "board"); /* get board_id */
 		if (cm.board_id)
 		{
@@ -82,7 +89,7 @@ int main(void)
 		 * thread mode - parent_id is same as post id
 		 * reply mode - parent_id is provided by the client
 		 */
-		cm.id = db_total_posts(db, cm.board_id, -1) + 1; /* assign id/parent_id */
+		cm.id = db_total_posts(db, cm.board_id, -1) + 1; /* assign post id */
 		char *parent_str = query_search(&query, "parent");
 		if (mode == THREAD_MODE)
 			cm.parent_id = cm.id;
@@ -111,7 +118,6 @@ int main(void)
 		cm.del_pass = "dummy";
 
 		cm.time = time(NULL); /* time */
-		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		if (cm.name)
 			strip_whitespace(utf8_rewrite(cm.name));
@@ -120,15 +126,32 @@ int main(void)
 		if (cm.subject)
 			strip_whitespace(utf8_rewrite(cm.subject));
 		cm.comment = query_search(&query, "comment"); /* comment body */
-		/* continue */
+		if (cm.comment)
+		{
+			/* variable input fields */
+			const char *const field[] = { cm.name, cm.subject, cm.comment };
+			static const unsigned limit[] = {
+				NAME_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH
+			};
+			unsigned i;
+			for (i = 0; i < static_size(field); i++)
+			{
+				if (field[i])
+				{
+					if (utf8_charcount(field[i]) > limit[i]) /* length limit */
+						abort_now("<h2>One or more fields are too long.</h2>");
+					else
+						xss_sanitize((char **) &field[i]); /* sanitize field */
+				}
+			}
+			/* continue with post insertion */
+		}
+		else
+			abort_now("<h2>You cannot post a blank comment.</h2>");
 
-		/* insert post into db
-		 * thread mode:
-		 * if posts in board_id > MAX_ACTIVE_THREADS
-		 * find thread with oldest last_bump timestamp in active_threads and prune
-		 * delete all archive posts older than ARCHIVE_SEC
+		/* after inserting
+			 db_archive_oldest(db, cm.board_id);
 
-		*   vv done vv
 		 * reply mode:
 		 * if !(cm.options & POST_SAGE)
 		 		db_bump_parent(db, cm.board_id, cm.parent_id);

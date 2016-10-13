@@ -8,6 +8,7 @@
 #include "query.h"
 #include "utf8.h"
 #include "substr.h"
+#include "macros.h"
 
 /*
  * [core functionality]
@@ -491,11 +492,11 @@ int main(void)
 
 		/* footer */
 		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><div class=\"footer\">%s rev. %d ", IDENT, REVISION);
+		fprintf(stdout, "<br/><div class=\"footer\">%s db-%d/rev.%d", IDENT, DB_VER, REVISION);
 		#ifndef NDEBUG
-			fprintf(stdout, "dev-build ");
+			fprintf(stdout, "-dev");
 		#endif
-		fprintf(stdout, "<a href=\"%s\">[github]</a> ", REPO_URL);
+		fprintf(stdout, " <a href=\"%s\">[github]</a> ", REPO_URL);
 		if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
 		fprintf(stdout, "</div>");
 	}

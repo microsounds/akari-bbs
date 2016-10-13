@@ -5,6 +5,7 @@
 #include <crypt.h>
 #include "utf8.h"
 #include "substr.h"
+#include "macros.h"
 
 /*
  * utf8.c

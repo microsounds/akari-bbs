@@ -22,7 +22,8 @@
 /* software name */
 #define IDENT "akari-bbs"
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
-#define REVISION 14 /* revison no. */
+#define REVISION 14 /* revision no. */
+#define DB_VER 4
 
 /* constants */
 #define DEFAULT_NAME "Anonymous"
@@ -48,9 +49,5 @@
 
 /* deprecated xxx */
 #define POSTS_PER_PAGE 50
-
-
-/* error reporting */
-#define abort_now(msg) do { fprintf(stdout, msg); fflush(stdout); exit(1); } while (0)
 
 #endif
