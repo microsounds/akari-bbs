@@ -51,6 +51,7 @@ long db_cooldown_timer(sqlite3 *db, const char *ip_addr);
 
 /* insertion */
 int db_post_insert(sqlite3 *db, struct post *cm);
+int db_post_delete(sqlite3 *db, const char *board_id, const long id, int mode);
 int db_bump_parent(sqlite3 *db, const char *board_id, const long id);
 int db_archive_oldest(sqlite3 *db, const char *board_id);
 

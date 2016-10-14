@@ -229,51 +229,81 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 {
 	/* insert new post into database */
 	static const char *const sql[] = {
-		/* new thread creation */
 		"INSERT INTO active_threads VALUES(\"%s\", %ld, %ld, %d);",
-		/* mandatory fields */
 		"INSERT INTO "
 			"posts(board_id, parent_id, id, time, options, "
 			      "user_priv, del_pass, ip, comment) "
 		"VALUES(\"%s\", %ld, %ld, %ld, %d, %d, \"%s\", \"%s\");",
-		/* subject */
+		/* optional fields */
 		"UPDATE posts SET subject = \"%s\" "
 			"WHERE board_id = \"%s\" AND id = %ld;",
-		/* name */
 		"UPDATE posts SET name = \"%s\" "
 			"WHERE board_id = \"%s\" AND id = %ld;",
-		/* trip */
 		"UPDATE posts SET trip = \"%s\" "
 			"WHERE board_id = \"%s\" AND id = %ld;",
 	};
 	char *cmd[static_size(sql)] = { 0 }; /* buffer */
-	int err = 0;
-	if (cm->parent_id == cm->id) /* new thread */
+	int success = 0;
+	if (cm->parent_id == cm->id) /* new thread creation */
 	{
 		cmd[0] = sql_generate(sql[0], cm->board_id, cm->id, cm->time, 0);
-		err = db_transaction(db, cmd[0]);
+		success = !db_transaction(db, cmd[0]);
 	}
-	/* mandatory fields */
 	cmd[1] = sql_generate(sql[1],
 		cm->board_id, cm->parent_id, cm->id, cm->time,
 		cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment
 	);
-	err = db_transaction(db, cmd[1]);
-
-	/* optional fields */
+	success = !db_transaction(db, cmd[1]); /* mandatory fields */
 	const char *const field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
-	for (i = 0; i < static_size(field); i++)
+	for (i = 0; i < static_size(field); i++) /* optional fields */
 	{
 		if (field[i])
 		{
 			cmd[i+2] = sql_generate(sql[i+2], field[i], cm->board_id, cm->id);
-			err = db_transaction(db, cmd[i+2]);
+			success = !db_transaction(db, cmd[i+2]);
 		}
 	}
 	for (i = 0; i < static_size(sql); i++)
 		free((!cmd[i]) ? NULL : cmd[i]);
-	return err;
+	return success;
+}
+
+int db_post_delete(sqlite3 *db, const char *board_id, const long id, int mode)
+{
+	/* delete post
+	 * if a parent thread, delete all child posts
+	 * non-zero mode will remove from active_threads table
+	 * returns non-zero if successful
+	 */
+	static const char *const sql[] = {
+		"DELETE FROM posts WHERE board_id = \"%s\" AND id = %ld;",
+		/* parent thread delete */
+		"SELECT * FROM posts WHERE board_id = \"%s\" AND id = %ld;",
+		"DELETE FROM active_threads WHERE board_id = \"%s\" AND post_id = %ld;",
+		"DELETE FROM archived_threads WHERE board_id = \"%s\" AND post_id = %ld;",
+		"DELETE FROM posts WHERE board_id = \"%s\" AND parent_id = %ld;"
+	};
+	char *cmd[static_size(sql)] = { 0 };
+	unsigned i, success = 0;
+	for (i = 0; i < static_size(sql); i++) /* generate SQL */
+		cmd[i] = sql_generate(sql[i], board_id, id);
+	struct resource res;
+	db_resource_fetch(db, &res, cmd[1]);
+	if (res.count)
+	{
+		if (res.arr[0].id == res.arr[0].parent_id) /* parent thread */
+		{
+			success = !db_transaction(db, (!mode) ? cmd[2] : cmd[3]);
+			success = !db_transaction(db, cmd[4]);
+		}
+		else
+			success = !db_transaction(db, cmd[0]); /* single post */
+	}
+	db_resource_free(&res);
+	for (i = 0; i < static_size(sql); i++)
+		free((!cmd[i]) ? NULL : cmd[i]);
+	return success;
 }
 
 int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
@@ -316,9 +346,6 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		"SELECT COUNT(*) FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",
 		/* get post no's of expired archive threads */
 		"SELECT post_id FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",
-		/* delete expired posts */
-		"DELETE FROM archived_threads WHERE board_id = \"%s\" AND post_id = %ld;"
-		"DELETE FROM posts WHERE board_id = \"%s\" AND parent_id = %ld;"
 	};
 	char *cmd[static_size(sql)] = { 0 }; /* generated SQL storage */
 	long *post_id; /* post no's to work on */
@@ -334,30 +361,23 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		post_id = db_array_retrieval(db, cmd[1], diff);
 		for (i = 0; i < diff; i++)
 		{
+			/* set expiration date */
 			cmd[2] = sql_generate(sql[2],
-				board_id, post_id[i], tm + ARCHIVE_SEC, /* expiration date */
-				board_id, post_id[i]
+				board_id, post_id[i], tm + ARCHIVE_SEC, board_id, post_id[i]
 			);
 			success = !db_transaction(db, cmd[2]);
 			free(cmd[2]); cmd[2] = NULL; /* double-free */
 		}
 		free(post_id);
 	}
-	cmd[3] = sql_generate(sql[3], board_id, tm); /* delete archived threads */
+	cmd[3] = sql_generate(sql[3], board_id, tm); /* delete expired threads */
 	unsigned expire_count = db_retrieval(db, cmd[3]);
 	if (expire_count > 0)
 	{
 		cmd[4] = sql_generate(sql[4], board_id, tm);
 		post_id = db_array_retrieval(db, cmd[4], expire_count);
 		for (i = 0; i < expire_count; i++)
-		{
-			cmd[5] = sql_generate(sql[5],
-				board_id, post_id[i],
-				board_id, post_id[i]
-			);
-			success = !db_transaction(db, cmd[5]);
-			free(cmd[5]); cmd[5] = NULL; /* double-free */
-		}
+			success = db_post_delete(db, board_id, post_id[i], 0);
 		free(post_id);
 	}
 	for (i = 0; i < static_size(sql); i++)

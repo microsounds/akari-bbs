@@ -146,7 +146,7 @@ int main(void)
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
 		/* !! spam filter */
 			/* here */
-		if (!db_post_insert(db, &cm)) /* insert post / push new thread */
+		if (db_post_insert(db, &cm)) /* insert post / push new thread */
 		{
 			db_archive_oldest(db, cm.board_id); /* prune old threads */
 			if (mode == REPLY_MODE)
