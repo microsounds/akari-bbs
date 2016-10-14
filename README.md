@@ -5,7 +5,24 @@
 
 akari-bbs is an **_in-development_** lightweight messageboard system written in C!
 
-Like a traditional futaba-like, no accounts are required to post and identity persistence is _optional_.
+## Features
+### No Registration
+Like a traditional Futaba-like, no accounts are required to post. Identity persistence is _optional_.
+
+### Thread Persistence
+Each board may host up to 150 active threads at once.
+
+Replying to a thread bumps it to the front page. Old discussion and stale threads are slowly pruned off the board as new threads are made.
+
+A hard limit on thread bumps keeps discussion fresh and ensures high content turnover.
+
+### Identity
+Users can post anonymously or with a username.
+You can also maintain a persistent identity using a tripcode.
+
+A tripcode is a static DES hash appended to your name. Just enter a # and a password after your name.
+
+> `Akari#example` becomes _Akari !KtW6XcghiY_
 
 ### Implemented Features
 * Anonymous posting
