@@ -57,7 +57,7 @@ int main(void)
 		struct post cm = { 0 }; /* compose a new post */
 
 		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
-		unsigned timer = db_cooldown_timer(db, cm.ip); /* posting cooldown */
+		unsigned timer = db_cooldown_timer(db, cm.ip); /* post cooldown */
 		if (timer > 0)
 			abort_now_fmt("<h2>Please wait %u more seconds.</h2>", timer);
 
@@ -74,6 +74,10 @@ int main(void)
 		else
 			abort_now("<h2>No board provided.</h2>");
 
+		/* MODES
+		 * thread mode - parent_id is same as post id
+		 * reply mode - parent_id is provided by the client
+		 */
 		const char *mode_str = query_search(&query, "mode"); /* get mode */
 		enum submit_mode { THREAD_MODE, REPLY_MODE } mode;
 		if (!mode_str)
@@ -85,10 +89,7 @@ int main(void)
 		else
 			abort_now("<h2>Invalid submit mode.</h2>");
 
-		/* MODES
-		 * thread mode - parent_id is same as post id
-		 * reply mode - parent_id is provided by the client
-		 */
+		cm.time = time(NULL); /* assign timestamp */
 		cm.id = db_total_posts(db, cm.board_id, -1) + 1; /* assign post id */
 		char *parent_str = query_search(&query, "parent");
 		if (mode == THREAD_MODE)
@@ -117,45 +118,46 @@ int main(void)
 		/* deletion password (not implemented) */
 		cm.del_pass = "dummy";
 
-		cm.time = time(NULL); /* time */
+		/* user input fields
+		 * convert to UTF-8, check lengths and sanitize inputs
+		 */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
-		if (cm.name)
-			strip_whitespace(utf8_rewrite(cm.name));
-		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
 		cm.subject = query_search(&query, "subject"); /* subject */
-		if (cm.subject)
-			strip_whitespace(utf8_rewrite(cm.subject));
 		cm.comment = query_search(&query, "comment"); /* comment body */
-		if (cm.comment)
+		if (!cm.comment)
+			abort_now("<h2>You cannot post a blank comment.</h2>");
+		char *field[] = { cm.name, cm.subject, cm.comment };
+		static const unsigned limit[] = {
+			NAME_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH
+		};
+		unsigned i;
+		for (i = 0; i < static_size(field); i++)
 		{
-			/* variable input fields */
-			const char *const field[] = { cm.name, cm.subject, cm.comment };
-			static const unsigned limit[] = {
-				NAME_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH
-			};
-			unsigned i;
-			for (i = 0; i < static_size(field); i++)
+			if (field[i])
 			{
-				if (field[i])
-				{
-					if (utf8_charcount(field[i]) > limit[i]) /* length limit */
-						abort_now("<h2>One or more fields are too long.</h2>");
-					else
-						xss_sanitize((char **) &field[i]); /* sanitize field */
-				}
+				strip_whitespace(utf8_rewrite(field[i])); /* UTF-8 */
+				if (utf8_charcount(field[i]) > limit[i]) /* length limit */
+					abort_now("<h2>One or more fields are too long.</h2>");
+				else
+					xss_sanitize(&field[i]); /* sanitize inputs */
 			}
-			/* continue with post insertion */
+		}
+		/* create tripcode from #password in name if any */
+		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
+		/* !! spam filter */
+			/* here */
+		if (!db_post_insert(db, &cm)) /* insert post / push new thread */
+		{
+			db_archive_oldest(db, cm.board_id); /* prune old threads */
+			if (mode == REPLY_MODE)
+			{
+				if (!(cm.options & POST_SAGE)) /* and bump the parent */
+					db_bump_parent(db, cm.board_id, cm.parent_id);
+			}
+			fprintf(stdout, "<h2>/%s/->No.%ld submitted!</h2>", cm.board_id, cm.id);
 		}
 		else
-			abort_now("<h2>You cannot post a blank comment.</h2>");
-
-		/* after inserting
-			 db_archive_oldest(db, cm.board_id);
-
-		 * reply mode:
-		 * if !(cm.options & POST_SAGE)
-		 		db_bump_parent(db, cm.board_id, cm.parent_id);
-		 */
+			abort_now("<h2>Post failed, database is read-only.</h2>");
 		query_free(&query);
 	}
 	sqlite3_close(db);

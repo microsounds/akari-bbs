@@ -229,24 +229,36 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 {
 	/* insert new post into database */
 	static const char *const sql[] = {
+		/* new thread creation */
+		"INSERT INTO active_threads VALUES(\"%s\", %ld, %ld, %d);",
 		/* mandatory fields */
 		"INSERT INTO "
 			"posts(board_id, parent_id, id, time, options, "
 			      "user_priv, del_pass, ip, comment) "
 		"VALUES(\"%s\", %ld, %ld, %ld, %d, %d, \"%s\", \"%s\");",
 		/* subject */
-		"UPDATE posts SET subject = \"%s\" WHERE id = %ld;",
+		"UPDATE posts SET subject = \"%s\" "
+			"WHERE board_id = \"%s\" AND id = %ld;",
 		/* name */
-		"UPDATE posts SET name = \"%s\" WHERE id = %ld;",
+		"UPDATE posts SET name = \"%s\" "
+			"WHERE board_id = \"%s\" AND id = %ld;",
 		/* trip */
-		"UPDATE posts SET trip = \"%s\" WHERE id = %ld;"
+		"UPDATE posts SET trip = \"%s\" "
+			"WHERE board_id = \"%s\" AND id = %ld;",
 	};
-	char *cmd = sql_generate(sql[0],
+	char *cmd[static_size(sql)] = { 0 }; /* buffer */
+	int err = 0;
+	if (cm->parent_id == cm->id) /* new thread */
+	{
+		cmd[0] = sql_generate(sql[0], cm->board_id, cm->id, cm->time, 0);
+		err = db_transaction(db, cmd[0]);
+	}
+	/* mandatory fields */
+	cmd[1] = sql_generate(sql[1],
 		cm->board_id, cm->parent_id, cm->id, cm->time,
 		cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment
 	);
-	int err = db_transaction(db, cmd);
-	free(cmd);
+	err = db_transaction(db, cmd[1]);
 
 	/* optional fields */
 	const char *const field[] = { cm->subject, cm->name, cm->trip };
@@ -255,11 +267,12 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	{
 		if (field[i])
 		{
-			cmd = sql_generate(sql[i+1], field[i], cm->id);
-			err = db_transaction(db, cmd);
-			free(cmd);
+			cmd[i+2] = sql_generate(sql[i+2], field[i], cm->board_id, cm->id);
+			err = db_transaction(db, cmd[i+2]);
 		}
 	}
+	for (i = 0; i < static_size(sql); i++)
+		free((!cmd[i]) ? NULL : cmd[i]);
 	return err;
 }
 
