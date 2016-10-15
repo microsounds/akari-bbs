@@ -12,7 +12,7 @@
 /*
  * [core functionality]
  * submit.c
- * POST submission / database insert
+ * POST submission, database insert, housekeeping
  */
 
 /* USAGE:
@@ -20,10 +20,42 @@
  * reply mode:  board=a&mode=reply&parent=12345&...
  */
 
+/* exceptions */
+#define abort_now(msg) do { printf(msg); printf(html[2]); exit(1); } while (0)
+#define abort_now_fmt(fmt, a1) do { printf(fmt, a1); printf(html[2]); exit(1); } while (0)
+
+static const char *const html[] = {
+	/* header */
+	"<!DOCTYPE html>"
+	"<html lang=\"en-US\">"
+	"<head>"
+		"<title>%s submission</title>"
+		"<meta charset=\"UTF-8\" />"
+		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
+		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
+		"<style>a { text-decoration: none; } a:hover { color: red; }</style>"
+	"</head>"
+	"<body>"
+		"<div class=\"pContainer\">"
+			"<span class=\"pName\">%s <i>rev.%d/db-%d</i></span>"
+			"<div class=\"pComment\">",
+	/* footer */
+			"</div>"
+		"</div>"
+	"</body>"
+	"</html>",
+	/* go back */
+	"<div>[<a href=\"#\" onclick=\"history.go(-1)\">Go back</a>]</div>",
+	/* redirect */
+	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld\">"
+};
+
 int main(void)
 {
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
+	fprintf(stdout, html[0], IDENT, IDENT, REVISION, DB_VER);
 	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL)) /* read/write mode */
 		abort_now("<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 
@@ -31,6 +63,7 @@ int main(void)
 	const char *request = getenv("REQUEST_METHOD");
 	if (!request)
 		abort_now("Not a CGI environment.\n");
+
 	if (!strcmp(request, "POST"))
 	{
 		unsigned POST_len = atoi(getenv("CONTENT_LENGTH"));
@@ -142,10 +175,10 @@ int main(void)
 					xss_sanitize(&field[i]); /* sanitize inputs */
 			}
 		}
+		if (spam_filter(cm.comment)) /* spammy behavior */
+			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
 		/* create tripcode from #password in name if any */
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
-		/* !! spam filter */
-			/* here */
 		if (db_post_insert(db, &cm)) /* insert post / push new thread */
 		{
 			db_archive_oldest(db, cm.board_id); /* prune old threads */
@@ -153,13 +186,17 @@ int main(void)
 			{
 				if (!(cm.options & POST_SAGE)) /* and bump the parent */
 					db_bump_parent(db, cm.board_id, cm.parent_id);
+				fprintf(stdout, "<h2>Reply to Thread No.%ld... ", cm.parent_id);
+				fprintf(stdout, "Post No.%ld submitted!</h2>", cm.id);
 			}
-			fprintf(stdout, "<h2>/%s/->No.%ld submitted!</h2>", cm.board_id, cm.id);
+			else
+				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
 		}
 		else
 			abort_now("<h2>Post failed, database is read-only.</h2>");
 		query_free(&query);
 	}
+	fprintf(stdout, html[1]);
 	sqlite3_close(db);
 	return 0;
 }

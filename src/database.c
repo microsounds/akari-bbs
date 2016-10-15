@@ -329,7 +329,7 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
 
 int db_archive_oldest(sqlite3 *db, const char *board_id)
 {
-	/* archive thread(s) with the oldest last_bump timestamps
+	/* archive thread(s) with oldest last_bump timestamps
 	 * delete all archived threads older than expiry date
 	 * returns non-zero if operations performed
 	 */
@@ -361,8 +361,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		post_id = db_array_retrieval(db, cmd[1], diff);
 		for (i = 0; i < diff; i++)
 		{
-			/* set expiration date */
-			cmd[2] = sql_generate(sql[2],
+			cmd[2] = sql_generate(sql[2], /* set expiration date */
 				board_id, post_id[i], tm + ARCHIVE_SEC, board_id, post_id[i]
 			);
 			success = !db_transaction(db, cmd[2]);
