@@ -43,10 +43,7 @@ static const char *const html[] = {
 	"</body>"
 	"</html>",
 	/* backlink */
-	"<div>[<a href=\"%s\">Go back</a>]</div>",
-	/* redirect */
-	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld\">",
-	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld#p%ld\">"
+	"<div>[<a href=\"%s\">Go back</a>]</div>"
 };
 
 void abort_now(const char *fmt, ...)
@@ -198,14 +195,10 @@ int main(void)
 					db_bump_parent(db, cm.board_id, cm.parent_id);
 				fprintf(stdout, "<h2>Reply to Thread No.%ld... ", cm.parent_id);
 				fprintf(stdout, "Post No.%ld submitted!</h2>", cm.id);
-				fprintf(stdout, html[4], cm.board_id, cm.parent_id, cm.id);
 			}
 			else /* THREAD_MODE */
-			{
 				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
-				fprintf(stdout, html[3], cm.board_id, cm.id);
-			}
-			/* page should redirect shortly */
+			thread_redirect(cm.board_id, cm.parent_id, cm.id); /* redirect */
 		}
 		else
 			abort_now("<h2>Post failed, database is read-only.</h2>");

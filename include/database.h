@@ -48,6 +48,9 @@ struct resource {
 	struct post *arr;
 };
 
+/* redirects */
+void thread_redirect(const char *board_id, long parent_id, long post_id);
+
 /* validation */
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id);
 int db_validate_board(sqlite3 *db, const char *board_id);

@@ -26,11 +26,12 @@
 #define REVISION 14 /* revision no. */
 #define DB_VER 4
 
-/* constants */
-#define DEFAULT_NAME "Anonymous"
+/* static resources */
 #define DATABASE_LOC "db/database.sqlite3"
+#define BOARD_SCRIPT "/board.cgi"
+#define SUBMIT_SCRIPT "/submit.cgi"
 
-/* banners */
+/* rotating banners */
 #define BANNER_COUNT 625
 #define BANNER_LOC "img/banner"
 
@@ -41,6 +42,7 @@
 #define ARCHIVE_SEC ((60 * 60 * 24) * 30) /* 1 mo */
 
 /* user constants */
+#define DEFAULT_NAME "Anonymous"
 #define COOLDOWN_SEC 30
 #define MAX_THREADS_PER_IP 5
 #define POST_MAX_PAYLOAD 10000

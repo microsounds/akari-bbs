@@ -11,7 +11,7 @@
 
 /*
  * database.c
- * database validation, insertion, and retrieval
+ * database redirects, validation, insertion, and retrieval
  */
 
 /*
@@ -122,6 +122,31 @@ static long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n)
 	}
 	sqlite3_finalize(stmt);
 	return arr;
+}
+
+void thread_redirect(const char *board_id, long parent_id, long post_id)
+{
+	/* blind redirect to a specific thread
+	 * assuming all inputs are already validated
+	 * if post_id > parent_id, append as a permalink
+	 */
+	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
+	const char *url = "%s?board=%s&thread=%ld";
+	const char *permalink = "#p%ld";
+	char *buf[3]  = { 0 }; /* storage */
+	buf[0] = sql_generate(url, BOARD_SCRIPT, board_id, parent_id);
+	if (parent_id < post_id) /* concatenate permalink */
+	{
+		buf[1] = sql_generate(permalink, post_id);
+		unsigned size = strlen(buf[0]) + strlen(buf[1]);
+		buf[0] = (char *) realloc(buf[0], sizeof(char) * size + 1);
+		strcat(buf[0], buf[1]);
+	}
+	buf[2] = sql_generate(redir, buf[0]);
+	fprintf(stdout, "%s", buf[2]);
+	unsigned i;
+	for (i = 0; i < static_size(buf); i++)
+		free((!buf[i]) ? NULL : buf[i]);
 }
 
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id)
