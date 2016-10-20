@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
@@ -20,10 +21,6 @@
  * reply mode:  board=a&mode=reply&parent=12345&...
  */
 
-/* exceptions */
-#define abort_now(msg) do { printf(msg); printf(html[2]); exit(1); } while (0)
-#define abort_now_fmt(fmt, a1) do { printf(fmt, a1); printf(html[2]); exit(1); } while (0)
-
 static const char *const html[] = {
 	/* header */
 	"<!DOCTYPE html>"
@@ -34,7 +31,7 @@ static const char *const html[] = {
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
 		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
-		"<style>a { text-decoration: none; } a:hover { color: red; }</style>"
+		"<style>h2 { color: #424242; }  a { text-decoration: none; } a:hover { color: red; }</style>"
 	"</head>"
 	"<body>"
 		"<div class=\"pContainer\">"
@@ -45,12 +42,25 @@ static const char *const html[] = {
 		"</div>"
 	"</body>"
 	"</html>",
-	/* go back */
-	"<div>[<a href=\"#\" onclick=\"history.go(-1)\">Go back</a>]</div>",
+	/* backlink */
+	"<div>[<a href=\"%s\">Go back</a>]</div>",
 	/* redirect */
 	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld\">",
 	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld#p%ld\">"
 };
+
+void abort_now(const char *fmt, ...)
+{
+	/* output formatted error, print backlink and exit */
+	va_list args;
+	va_start(args, fmt);
+	vfprintf(stdout, fmt, args);
+	va_end(args);
+	const char *refer = getenv("HTTP_REFERER");
+	fprintf(stdout, html[2], (!refer) ? "/" : refer);
+	fprintf(stdout, html[1]); /* footer */
+	exit(1);
+}
 
 int main(void)
 {
@@ -92,7 +102,7 @@ int main(void)
 		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
 		unsigned timer = db_cooldown_timer(db, cm.ip); /* post cooldown */
 		if (timer > 0)
-			abort_now_fmt("<h2>Please wait %u more seconds.</h2>", timer);
+			abort_now("<h2>Please wait %u more seconds.</h2>", timer);
 
 		cm.board_id = query_search(&query, "board"); /* get board_id */
 		if (cm.board_id)
@@ -102,7 +112,7 @@ int main(void)
 			if (!db_validate_board(db, cm.board_id))
 				abort_now("<h2>Specified board doesn't exist.</h2>");
 			if (db_status_flags(db, cm.board_id, -1) & BOARD_LOCKED)
-				abort_now("<h2>This board is locked.<h2>");
+				abort_now("<h2>Posting is disabled on this board.<h2>");
 		}
 		else
 			abort_now("<h2>No board provided.</h2>");
@@ -195,12 +205,13 @@ int main(void)
 				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
 				fprintf(stdout, html[3], cm.board_id, cm.id);
 			}
+			/* page should redirect shortly */
 		}
 		else
 			abort_now("<h2>Post failed, database is read-only.</h2>");
 		query_free(&query);
 	}
-	fprintf(stdout, html[1]);
+	fprintf(stdout, html[1]); /* footer */
 	sqlite3_close(db);
 	return 0;
 }
