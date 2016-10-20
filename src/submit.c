@@ -29,7 +29,7 @@ static const char *const html[] = {
 	"<!DOCTYPE html>"
 	"<html lang=\"en-US\">"
 	"<head>"
-		"<title>%s submission</title>"
+		"<title>Submit - %s</title>"
 		"<meta charset=\"UTF-8\" />"
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
@@ -48,14 +48,15 @@ static const char *const html[] = {
 	/* go back */
 	"<div>[<a href=\"#\" onclick=\"history.go(-1)\">Go back</a>]</div>",
 	/* redirect */
-	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld\">"
+	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld\">",
+	"<meta http-equiv=\"refresh\" content=\"1; url=/board.cgi?board=%s&thread=%ld#p%ld\">"
 };
 
 int main(void)
 {
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
-	fprintf(stdout, html[0], IDENT, IDENT, REVISION, DB_VER);
+	fprintf(stdout, html[0], IDENT_FULL, IDENT, REVISION, DB_VER);
 	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL)) /* read/write mode */
 		abort_now("<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
 
@@ -63,7 +64,6 @@ int main(void)
 	const char *request = getenv("REQUEST_METHOD");
 	if (!request)
 		abort_now("Not a CGI environment.\n");
-
 	if (!strcmp(request, "POST"))
 	{
 		unsigned POST_len = atoi(getenv("CONTENT_LENGTH"));
@@ -188,9 +188,13 @@ int main(void)
 					db_bump_parent(db, cm.board_id, cm.parent_id);
 				fprintf(stdout, "<h2>Reply to Thread No.%ld... ", cm.parent_id);
 				fprintf(stdout, "Post No.%ld submitted!</h2>", cm.id);
+				fprintf(stdout, html[4], cm.board_id, cm.parent_id, cm.id);
 			}
-			else
+			else /* THREAD_MODE */
+			{
 				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
+				fprintf(stdout, html[3], cm.board_id, cm.id);
+			}
 		}
 		else
 			abort_now("<h2>Post failed, database is read-only.</h2>");

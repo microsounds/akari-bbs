@@ -13,6 +13,8 @@ body
 	background-color: #AFD3FF;
 }
 
+/* rotating banner */
+
 #banner
 {
 	float: left;
@@ -45,6 +47,27 @@ a > #bannertext
 	font-weight: bold;
 }
 
+#boardtitle
+{
+	float: right;
+	margin: 2px;
+	text-align: center;
+	font-size: 22px;
+	color: #646464;
+}
+
+#boardlist
+{
+	margin: 2px;
+	font-size: 12px;
+	color: #646464;
+}
+#boardlist > a { link-decoration: none; }
+#boardlist > a:link { color: inherit; text-decoration: inherit; }
+#boardlist > a:hover { color: red; }
+
+/* post box */
+
 #postbox
 {
 	float: left;
@@ -59,9 +82,42 @@ a > #bannertext
 	box-shadow: 3px 3px 7px 0px gray;
 }
 
+.formtitle
+{
+	padding: 3px;
+	margin-bottom: 3px;
+	font-size: 13px;
+	text-align: center;
+	color: white;
+	border-radius: 2px;
+	background: repeating-linear-gradient(
+		135deg,
+		rgba(0, 0, 0, 0.2),
+		rgba(0, 0, 0, 0.2) 10px,
+		rgba(0, 0, 0, 0.3) 10px,
+		rgba(0, 0, 0, 0.3) 20px
+	);
+}
+
+.threadmode { background-color: #DBAFFF; }
+.boardmode { background-color: #AACCFF; }
+
+.form { width: 100%; height: 100%; }
+.field { width: 200px; padding: 2px; border: 1px solid #B3AFFF; }
+.desc
+{
+	width: 65px;
+	height:100%;
+	text-align: center;
+	font-weight: bold;
+	border: 1px solid #B3AFFF;
+	padding: 2px;
+	background-color: #EEE;
+}
+
 /* help messages */
 
-.help { padding:1px; font-size: 11px; }
+.help { float: right; padding:1px; font-size: 11px; }
 .tooltip { display: inline; position: relative; color: #646464; text-decoration: none; }
 .tooltip:hover:before
 {
@@ -171,7 +227,6 @@ a:visited { color: inherit; }
 	border-right: 1px solid #DBBFFF;
 	box-shadow: 3px 3px 5px 0px #DBAFFF;
 }
-
 
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }

@@ -20,6 +20,7 @@
  */
 
 /* software name */
+#define IDENT_FULL "Akari BBS"
 #define IDENT "akari-bbs"
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revision no. */

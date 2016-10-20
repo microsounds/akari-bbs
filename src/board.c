@@ -21,9 +21,10 @@
 	just give all the inputs a class and set them to width: 100%?
  */
 
+#define abort_now(msg) do { printf(msg); exit(1); } while (0)
 
 const char *const header[] = {
-/* head */
+/* header */
 "<!DOCTYPE html>"
 "<html lang=\"en-US\">"
 "<head>"
@@ -69,10 +70,6 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
-	- decouple board.cgi from submit.cgi
-	- all fetchers must now account for board id
-	- all SQL statements must now account for board id too
-	-
 	- insert post number into localStorage to emulate (You) quotes
 	- add admin panel w/ login
 	- db_fetch_parent() to provide correct quotelinks in the future

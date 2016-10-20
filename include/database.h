@@ -20,7 +20,14 @@ enum post_options {
 	POST_BAN  = (1 << 2)
 };
 
-/* database fetch container */
+/* database fetch containers */
+
+struct board {
+	unsigned count;
+	char **id;
+	char **desc;
+};
+
 struct post {
 	char *board_id;
 	long parent_id;
@@ -56,6 +63,8 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id);
 int db_archive_oldest(sqlite3 *db, const char *board_id);
 
 /* resource fetching */
+long db_board_fetch(sqlite3 *db, struct board *ls);
+void db_board_free(struct board *ls);
 long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql);
 long db_resource_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit);
 void db_resource_free(struct resource *res);

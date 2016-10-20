@@ -80,7 +80,6 @@ static char *sql_rowcount(const char *str)
 	return out;
 }
 
-
 static int db_transaction(sqlite3 *db, const char *sql)
 {
 	/* 1-shot SQL INSERT/UPDATE transaction
@@ -95,7 +94,7 @@ static int db_transaction(sqlite3 *db, const char *sql)
 
 static long db_retrieval(sqlite3 *db, const char *sql)
 {
-	/* 1-shot SQL SELECT value retrieval
+	/* 1-shot SQL SELECT integer value retrieval
 	 * returns first value from first column
 	 */
 	sqlite3_stmt *stmt;
@@ -108,7 +107,7 @@ static long db_retrieval(sqlite3 *db, const char *sql)
 
 static long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n)
 {
-	/* 1-shot SQL SELECT array retrieval
+	/* 1-shot SQL SELECT integer array retrieval
 	 * retrieves n integer values from first column
 	 */
 	sqlite3_stmt *stmt;
@@ -382,6 +381,50 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 	for (i = 0; i < static_size(sql); i++)
 		free((!cmd[i]) ? NULL : cmd[i]);
 	return success;
+}
+
+long db_board_fetch(sqlite3 *db, struct board *ls)
+{
+	/* fetch enumerated boardlist and descriptions
+	 * returns number of items fetched
+	 */
+	static const char *const sql[] = {
+		"SELECT COUNT(id) FROM boards;"
+		"SELECT id, desc FROM boards ORDER BY id;"
+	};
+	ls->count = db_retrieval(db, sql[0]);
+	if (ls->count)
+	{
+		ls->id = (char **) malloc(sizeof(char *) * ls->count);
+		ls->desc = (char **) malloc(sizeof(char *) * ls->count);
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(db, sql[1], -1, &stmt, NULL);
+		unsigned i;
+		for (i = 0; i < ls->count; i++)
+		{
+			sqlite3_step(stmt);
+			ls->id[i] = strdup((char *) sqlite3_column_text(stmt, 0));
+			ls->desc[i] = strdup((char *) sqlite3_column_text(stmt, 1));
+		}
+		sqlite3_finalize(stmt);
+	}
+	return ls->count;
+}
+
+void db_board_free(struct board *ls)
+{
+	if (ls->count)
+	{
+		unsigned i;
+		for(i = 0; i < ls->count; i++)
+		{
+			free((!ls->id[i]) ? NULL : ls->id[i]);
+			free((!ls->desc[i]) ? NULL : ls->desc[i]);
+		}
+		free(ls->id);
+		free(ls->desc);
+		ls->count = 0;
+	}
 }
 
 long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
