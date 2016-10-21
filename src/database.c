@@ -127,7 +127,7 @@ static long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n)
 void thread_redirect(const char *board_id, long parent_id, long post_id)
 {
 	/* blind redirect to a specific thread
-	 * assuming all inputs are already validated
+	 * assuming inputs are already validated
 	 * if post_id > parent_id, append as a permalink
 	 */
 	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
@@ -135,7 +135,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	const char *permalink = "#p%ld";
 	char *buf[3]  = { 0 }; /* storage */
 	buf[0] = sql_generate(url, BOARD_SCRIPT, board_id, parent_id);
-	if (parent_id < post_id) /* concatenate permalink */
+	if (post_id > parent_id) /* concatenate permalink */
 	{
 		buf[1] = sql_generate(permalink, post_id);
 		unsigned size = strlen(buf[0]) + strlen(buf[1]);
@@ -415,12 +415,13 @@ long db_board_fetch(sqlite3 *db, struct board *ls)
 	 */
 	static const char *const sql[] = {
 		"SELECT COUNT(id) FROM boards;"
-		"SELECT id, desc FROM boards ORDER BY id;"
+		"SELECT id, name, desc FROM boards ORDER BY id;"
 	};
 	ls->count = db_retrieval(db, sql[0]);
 	if (ls->count)
 	{
 		ls->id = (char **) malloc(sizeof(char *) * ls->count);
+		ls->name = (char **) malloc(sizeof(char *) * ls->count);
 		ls->desc = (char **) malloc(sizeof(char *) * ls->count);
 		sqlite3_stmt *stmt;
 		sqlite3_prepare_v2(db, sql[1], -1, &stmt, NULL);
@@ -429,7 +430,8 @@ long db_board_fetch(sqlite3 *db, struct board *ls)
 		{
 			sqlite3_step(stmt);
 			ls->id[i] = strdup((char *) sqlite3_column_text(stmt, 0));
-			ls->desc[i] = strdup((char *) sqlite3_column_text(stmt, 1));
+			ls->name[i] = strdup((char *) sqlite3_column_text(stmt, 1));
+			ls->desc[i] = strdup((char *) sqlite3_column_text(stmt, 2));
 		}
 		sqlite3_finalize(stmt);
 	}
@@ -444,9 +446,11 @@ void db_board_free(struct board *ls)
 		for(i = 0; i < ls->count; i++)
 		{
 			free((!ls->id[i]) ? NULL : ls->id[i]);
+			free((!ls->name[i]) ? NULL : ls->name[i]);
 			free((!ls->desc[i]) ? NULL : ls->desc[i]);
 		}
 		free(ls->id);
+		free(ls->name);
 		free(ls->desc);
 		ls->count = 0;
 	}
@@ -454,7 +458,7 @@ void db_board_free(struct board *ls)
 
 long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
 {
-	/* fetch requested SQL row matches into memory
+	/* fetch enumerated post container that match requested params
 	 * returns number of items fetched
 	 * this automated version is intended for COUNT(*) compatible statements
 	 */
@@ -490,7 +494,7 @@ long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
 
 long db_resource_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
 {
-	/* fetch requested SQL row matches into memory
+	/* fetch enumerated post container that match requested params
 	 * returns number of items fetched
 	 * this manual version is intended for LIMIT/OFFSET statements ONLY
 	 */

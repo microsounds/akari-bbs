@@ -171,7 +171,7 @@ int db_post_cooldown(sqlite3 *db, const char *ip_addr)
  * backwards into heap memory.
  * eg. "Invalid read of size 4"
  *     "Address 0xABCDEF is 72 bytes inside a block of size 73 alloc'd"
- * Program still exhibits expected behavior regardless of optimizatons.
+ * Program still exhibits expected behavior regardless of optimizations.
  */
 
 char *enquote_comment(char **loc, const long id)

@@ -65,12 +65,12 @@ int main(void)
 	fprintf(stdout, "Content-type: text/html\n\n");
 	fprintf(stdout, html[0], IDENT_FULL, IDENT, REVISION, DB_VER);
 	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL)) /* read/write mode */
-		abort_now("<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
+		abort_now("<h2>[!] Database not found. Initialize with 'init.sh'.</h2>");
 
 	query_t query = { 0 }; /* obtain POST options */
 	const char *request = getenv("REQUEST_METHOD");
 	if (!request)
-		abort_now("Not a CGI environment.\n");
+		abort_now("<h2>Not a valid CGI environment.</h2>");
 	if (!strcmp(request, "POST"))
 	{
 		unsigned POST_len = atoi(getenv("CONTENT_LENGTH"));

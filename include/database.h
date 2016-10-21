@@ -25,6 +25,7 @@ enum post_options {
 struct board {
 	unsigned count;
 	char **id;
+	char **name;
 	char **desc;
 };
 

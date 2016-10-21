@@ -56,15 +56,25 @@ a > #bannertext
 	color: #646464;
 }
 
-#boardlist
+/* navigation */
+
+.navi { margin: 2px; color: #646464; }
+.navi > a { link-decoration: none; }
+.navi > a:link { color: inherit; text-decoration: inherit; }
+.navi > a:hover { color: red; }
+.boardlist { font-size: 12px; }
+.controls { font-size: 13px; }
+.right { float: right; }
+.line
 {
-	margin: 2px;
-	font-size: 12px;
-	color: #646464;
+	opacity: 0.7;
+	margin: 4px 0px 4px 0px;
+	width: 100%;
+	height: 1px;
+	background: #837984;
+	overflow: hidden;
 }
-#boardlist > a { link-decoration: none; }
-#boardlist > a:link { color: inherit; text-decoration: inherit; }
-#boardlist > a:hover { color: red; }
+
 
 /* post box */
 
@@ -106,7 +116,7 @@ a > #bannertext
 .desc
 {
 	width: 65px;
-	height:100%;
+	height: 100%;
 	text-align: center;
 	font-weight: bold;
 	border: 1px solid #B3AFFF;
@@ -116,7 +126,7 @@ a > #bannertext
 
 /* help messages */
 
-.help { float: right; padding:1px; font-size: 11px; }
+.help { padding:1px; font-size: 11px; }
 .tooltip { display: inline; position: relative; color: #646464; text-decoration: none; }
 .tooltip:hover:before
 {
@@ -146,8 +156,6 @@ a > #bannertext
 }
 
 textarea, input { color: #646464; font-family: sans-serif; }
-.nav { color: #646; }
-.nav > a:hover { color: red; }
 
 .reset { clear: both; }
 
@@ -155,23 +163,12 @@ textarea, input { color: #646464; font-family: sans-serif; }
 .footer > a:link { color: inherit; text-decoration: inherit; }
 .footer > a:hover { color: red; }
 
-/* quoting */
-
-.pId > a:link { color: inherit; text-decoration: inherit; }
-.pId > a:hover { color: red; }
-a:visited { color: inherit; }
-
-.quote { color: #66821B; }
-.linkquote { color: #D00 !important; text-decoration: underline; }
-.highlight { border-left: 5px solid #9793D7; background-color: #D5B2FE !important; }
-.popup { position: absolute; border: 1px solid lightgray; }
-
-/* spoilers */
+/* [spoiler] blocks */
 
 .spoiler { background: black; color: black; }
 .spoiler:hover { color: white; }
 
-/* [code] tags */
+/* [code] blocks */
 
 .codeblock
 {
@@ -230,3 +227,14 @@ a:visited { color: inherit; }
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }
 .pComment { margin: 16px 4px 5px 16px; white-space: pre-line; }
+
+/* post quoting */
+
+.pId > a:link { color: inherit; text-decoration: inherit; }
+.pId > a:hover { color: red; }
+a:visited { color: inherit; }
+
+.quote { color: #66821B; }
+.linkquote { color: #D00 !important; text-decoration: underline; }
+.highlight { border-left: 5px solid #9793D7; background-color: #D5B2FE !important; }
+.popup { position: absolute; border: 1px solid lightgray; }
