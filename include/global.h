@@ -20,8 +20,9 @@
  */
 
 /* software name */
-#define IDENT_FULL "Akari BBS"
 #define IDENT "akari-bbs"
+#define IDENT_FULL "Akari BBS"
+#define TAGLINE "Lightweight Messageboard System"
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revision no. */
 #define DB_VER 4
@@ -49,6 +50,7 @@
 #define NAME_MAX_LENGTH 75
 #define SUBJECT_MAX_LENGTH 75
 #define COMMENT_MAX_LENGTH 2000
+#define INSERT_MAX_RETRIES 1000
 
 /* deprecated xxx */
 #define POSTS_PER_PAGE 50

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <limits.h>
 #include <time.h>
 #include <sqlite3.h>
 #include "global.h"
@@ -21,6 +22,28 @@
 	thread mode
 	SELECT * FROM posts WHERE board_id = \"%s\" AND parent_id = %ld ORDER BY time ASC:
  */
+
+
+/* SQLite3 error lookup */
+#define enum_string(e) [e] = #e
+const char *const sqlite3_err[UCHAR_MAX] = {
+	enum_string(SQLITE_OK), enum_string(SQLITE_ERROR),
+	enum_string(SQLITE_INTERNAL), enum_string(SQLITE_PERM),
+	enum_string(SQLITE_ABORT), enum_string(SQLITE_BUSY),
+	enum_string(SQLITE_LOCKED), enum_string(SQLITE_NOMEM),
+	enum_string(SQLITE_READONLY), enum_string(SQLITE_INTERRUPT),
+	enum_string(SQLITE_IOERR), enum_string(SQLITE_CORRUPT),
+	enum_string(SQLITE_NOTFOUND), enum_string(SQLITE_FULL),
+	enum_string(SQLITE_CANTOPEN), enum_string(SQLITE_PROTOCOL),
+	enum_string(SQLITE_EMPTY), enum_string(SQLITE_SCHEMA),
+	enum_string(SQLITE_TOOBIG), enum_string(SQLITE_CONSTRAINT),
+	enum_string(SQLITE_MISMATCH), enum_string(SQLITE_MISUSE),
+	enum_string(SQLITE_NOLFS), enum_string(SQLITE_AUTH),
+	enum_string(SQLITE_FORMAT), enum_string(SQLITE_RANGE),
+	enum_string(SQLITE_NOTADB), enum_string(SQLITE_NOTICE),
+	enum_string(SQLITE_WARNING), enum_string(SQLITE_ROW),
+	enum_string(SQLITE_DONE)
+};
 
 static char *sql_generate(const char *fmt, ...)
 {
@@ -89,7 +112,7 @@ static int db_transaction(sqlite3 *db, const char *sql)
 	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	int err = sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
-	return err;
+	return (err == SQLITE_DONE) ? SQLITE_OK : err;
 }
 
 static long db_retrieval(sqlite3 *db, const char *sql)
@@ -131,9 +154,15 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	 * if post_id > parent_id, append as a permalink
 	 */
 	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
+	const char *noscript =
+		"<noscript>"
+			"<div class=\"navi controls\">"
+				"[<a href=\"%s\">Click here</a>] if you are not redirected."
+			"</div>"
+		"</noscript>";
 	const char *url = "%s?board=%s&thread=%ld";
 	const char *permalink = "#p%ld";
-	char *buf[3]  = { 0 }; /* storage */
+	char *buf[4]  = { 0 }; /* storage */
 	buf[0] = sql_generate(url, BOARD_SCRIPT, board_id, parent_id);
 	if (post_id > parent_id) /* concatenate permalink */
 	{
@@ -143,7 +172,8 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 		strcat(buf[0], buf[1]);
 	}
 	buf[2] = sql_generate(redir, buf[0]);
-	fprintf(stdout, "%s", buf[2]);
+	buf[3] = sql_generate(noscript, buf[0]);
+	fprintf(stdout, "%s%s", buf[2], buf[3]);
 	unsigned i;
 	for (i = 0; i < static_size(buf); i++)
 		free((!buf[i]) ? NULL : buf[i]);
@@ -251,13 +281,16 @@ long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
 
 int db_post_insert(sqlite3 *db, struct post *cm)
 {
-	/* insert new post into database */
+	/* insert new post into database
+	 * if parent_id and id are the same, create new thread
+	 * returns error code
+	 */
 	static const char *const sql[] = {
 		"INSERT INTO active_threads VALUES(\"%s\", %ld, %ld, %d);",
 		"INSERT INTO "
 			"posts(board_id, parent_id, id, time, options, "
 			      "user_priv, del_pass, ip, comment) "
-		"VALUES(\"%s\", %ld, %ld, %ld, %d, %d, \"%s\", \"%s\");",
+		"VALUES(\"%s\", %ld, %ld, %ld, %d, %d, \"%s\", \"%s\", \"%s\");",
 		/* optional fields */
 		"UPDATE posts SET subject = \"%s\" "
 			"WHERE board_id = \"%s\" AND id = %ld;",
@@ -267,17 +300,17 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 			"WHERE board_id = \"%s\" AND id = %ld;",
 	};
 	char *cmd[static_size(sql)] = { 0 }; /* buffer */
-	int success = 0;
+	int err = 0;
 	if (cm->parent_id == cm->id) /* new thread creation */
 	{
 		cmd[0] = sql_generate(sql[0], cm->board_id, cm->id, cm->time, 0);
-		success = !db_transaction(db, cmd[0]);
+		err = db_transaction(db, cmd[0]);
 	}
 	cmd[1] = sql_generate(sql[1],
 		cm->board_id, cm->parent_id, cm->id, cm->time,
 		cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment
 	);
-	success = !db_transaction(db, cmd[1]); /* mandatory fields */
+	err = db_transaction(db, cmd[1]); /* mandatory fields */
 	const char *const field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
 	for (i = 0; i < static_size(field); i++) /* optional fields */
@@ -285,12 +318,15 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 		if (field[i])
 		{
 			cmd[i+2] = sql_generate(sql[i+2], field[i], cm->board_id, cm->id);
-			success = !db_transaction(db, cmd[i+2]);
+			err = db_transaction(db, cmd[i+2]);
 		}
 	}
 	for (i = 0; i < static_size(sql); i++)
+	{
+		fprintf(stdout, "%u: %s<br/>", i, cmd[i]);
 		free((!cmd[i]) ? NULL : cmd[i]);
-	return success;
+	}
+	return err;
 }
 
 int db_post_delete(sqlite3 *db, const char *board_id, const long id, int mode)

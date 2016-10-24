@@ -46,9 +46,11 @@ static const char *const html[] = {
 	"<div>[<a href=\"%s\">Go back</a>]</div>"
 };
 
-void abort_now(const char *fmt, ...)
+static void abort_now(const char *fmt, ...)
 {
-	/* output formatted error, print backlink and exit */
+	/* exception handling
+	 * print formatted error, add backlink and exit
+	 */
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(stdout, fmt, args);
@@ -61,11 +63,12 @@ void abort_now(const char *fmt, ...)
 
 int main(void)
 {
+	int err;
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
 	fprintf(stdout, html[0], IDENT_FULL, IDENT, REVISION, DB_VER);
-	if (sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL)) /* read/write mode */
-		abort_now("<h2>[!] Database not found. Initialize with 'init.sh'.</h2>");
+	if ((err = sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL))) /* read/write mode */
+		abort_now("<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
 
 	query_t query = { 0 }; /* obtain POST options */
 	const char *request = getenv("REQUEST_METHOD");
@@ -99,7 +102,7 @@ int main(void)
 		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
 		unsigned timer = db_cooldown_timer(db, cm.ip); /* post cooldown */
 		if (timer > 0)
-			abort_now("<h2>Please wait %u more seconds.</h2>", timer);
+			abort_now("<h2>Please wait %u more second%s.</h2>", timer, (timer > 1) ? "s" : "");
 
 		cm.board_id = query_search(&query, "board"); /* get board_id */
 		if (cm.board_id)
@@ -158,8 +161,9 @@ int main(void)
 		/* deletion password (not implemented) */
 		cm.del_pass = "dummy";
 
-		/* user input fields
-		 * convert to UTF-8, check lengths and sanitize inputs
+		/* user input field valiation
+		 * sanitation comes last because it interferes with
+		 * character counts and tripcode passwords
 		 */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		cm.subject = query_search(&query, "subject"); /* subject */
@@ -178,30 +182,42 @@ int main(void)
 				strip_whitespace(utf8_rewrite(field[i])); /* UTF-8 */
 				if (utf8_charcount(field[i]) > limit[i]) /* length limit */
 					abort_now("<h2>One or more fields are too long.</h2>");
-				else
-					xss_sanitize(&field[i]); /* sanitize inputs */
 			}
 		}
+		/* generate tripcode from #password if name provided */
+		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
+		for (i = 0; i < static_size(field); i++)
+			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
+
 		if (spam_filter(cm.comment)) /* spammy behavior */
 			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
-		/* create tripcode from #password in name if any */
-		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
-		if (db_post_insert(db, &cm)) /* insert post / push new thread */
+
+		int attempts = 0; /* reattempt insert if database is busy */
+		retry: if (attempts++ > 0)
+		{
+			cm.time = time(NULL); /* reassign post id's */
+			cm.id = db_total_posts(db, cm.board_id, -1) + 1;
+			if (mode == THREAD_MODE)
+				cm.parent_id = cm.id;
+		}
+		if (!(err = db_post_insert(db, &cm))) /* insert post / push new thread */
 		{
 			db_archive_oldest(db, cm.board_id); /* prune old threads */
 			if (mode == REPLY_MODE)
 			{
 				if (!(cm.options & POST_SAGE)) /* and bump the parent */
 					db_bump_parent(db, cm.board_id, cm.parent_id);
-				fprintf(stdout, "<h2>Reply to Thread No.%ld... ", cm.parent_id);
-				fprintf(stdout, "Post No.%ld submitted!</h2>", cm.id);
+				fprintf(stdout, "<h2>Reply to Thread No.%ld<br/>", cm.parent_id);
+				fprintf(stdout, ">>> Post No.%ld submitted!</h2>", cm.id);
 			}
 			else /* THREAD_MODE */
 				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
 			thread_redirect(cm.board_id, cm.parent_id, cm.id); /* redirect */
 		}
+		else if (err == SQLITE_BUSY && attempts < INSERT_MAX_RETRIES)
+			goto retry;
 		else
-			abort_now("<h2>Post failed, database is read-only.</h2>");
+			abort_now("<h2>Post failed. (e%d: %s)</h2>", err, sqlite3_err[err]);
 		query_free(&query);
 	}
 	fprintf(stdout, html[1]); /* footer */

@@ -49,6 +49,9 @@ struct resource {
 	struct post *arr;
 };
 
+/* SQLite3 error lookup */
+extern const char *const sqlite3_err[];
+
 /* redirects */
 void thread_redirect(const char *board_id, long parent_id, long post_id);
 
