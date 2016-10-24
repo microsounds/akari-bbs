@@ -47,13 +47,28 @@ a > #bannertext
 	font-weight: bold;
 }
 
-#boardtitle
+#boardtitle { margin: 2px; font-size: 22px; color: #646464; float: right; }
+.title { margin: 2px; font-size: 22px; color: #646464; font-weight: bold; font-style: italic; }
+.center { display: table; width: 300px;  margin-right: auto; margin-left: auto; }
+.invisible { display: none; }
+
+@keyframes pulsate
 {
-	float: right;
-	margin: 2px;
-	text-align: center;
-	font-size: 22px;
-	color: #646464;
+	0% { background-color: #B3AFFF; }
+	25% { background-color: #D5B2FE; }
+	50% { background-color: #B3AFFF; }
+	75% { background-color: #D5B2FE; }
+	100% { background-color: #B3AFFF; }
+}
+.frame
+{
+	padding: 6px;
+	border-left: 5px solid #9793D7;
+	border-bottom: 1px solid #DBBFFF;
+	border-right: 1px solid #DBBFFF;
+	box-shadow: 4px 4px 4px 0px lightgray;
+	animation: pulsate 10s infinite;
+	background-color: #B3AFFF;
 }
 
 /* navigation */
@@ -74,7 +89,6 @@ a > #bannertext
 	background: #837984;
 	overflow: hidden;
 }
-
 
 /* post box */
 
@@ -106,7 +120,7 @@ a > #bannertext
 		rgba(0, 0, 0, 0.2) 10px,
 		rgba(0, 0, 0, 0.3) 10px,
 		rgba(0, 0, 0, 0.3) 20px
-	);
+	); /* striped background */
 }
 .threadmode { background-color: #DBAFFF; }
 .boardmode { background-color: #AACCFF; }
