@@ -1,10 +1,9 @@
-## thread-mode branch
-
-**Latest working build is [master](https://github.com/microsounds/akari-bbs/tree/master) branch.**
-**Commits in this branch may be squashed in the future.**
-
 # akari-bbs — lightweight messageboard system
 akari-bbs is an **_in-development_** lightweight messageboard system written in C!
+
+## thread-mode branch
+**Latest working build is [master](https://github.com/microsounds/akari-bbs/tree/master) branch.**
+**Commits in this branch may be squashed in the future.**
 
 ## Features
 ### No Registration
