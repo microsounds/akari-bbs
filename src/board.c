@@ -16,7 +16,18 @@
  * messageboard user interface
  */
 
-const char *const static_template[] = {
+struct parameters {
+	enum {
+		HOMEPAGE,
+		INDEX_MODE,
+		THREAD_MODE
+	} mode;
+	char *board_id;
+	long thread_id;
+	long page_no;
+};
+
+const char *const global_template[] = {
 	/* header */
 	"<!DOCTYPE html>"
 	"<html lang=\"en-US\">"
@@ -33,7 +44,6 @@ const char *const static_template[] = {
 		"<br/>"
 		"<div class=\"footer\" style=\"text-align:center;\">"
 			"Powered by %s rev.%d/db-%d<br/>"
-			"akari-bbs (c) %d microsounds, released under the GNU General Public License v3 or later.<br/>"
 			"All trademarks and copyrights on this page are owned by their respective parties."
 			"Comments are owned by the Poster."
 		"</div>"
@@ -41,9 +51,8 @@ const char *const static_template[] = {
 	"</html>"
 };
 
-const char *const home_template[] = {
+const char *const header[] = {
 /* banner format string */
-
 "<body>"
 	"<div class=\"header\">"
 		"<a href=\"/\"><img id=\"banner\" src=\"%s/%d.png\" alt=\"Akari BBS\">"
@@ -96,81 +105,6 @@ const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 		- /board/peek/12345 - peek mode, with link to parent thread
 		- /board/thread/12340 - thread mode
  */
-
-/* this goes in submit.c */
-
-long db_total(sqlite3 *db)
-{
-	/* fetch total entries in database */
-	long entries = 0;
-	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, "SELECT MAX(id) FROM comments;", -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	entries = sqlite3_column_int(stmt, 0);
-	sqlite3_finalize(stmt);
-	return entries;
-}
-
-int db_transaction(sqlite3 *db, const char *sql)
-{
-	/* write SQL transaction */
-	sqlite3_stmt *stmt;
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-	int err = sqlite3_step(stmt);
-	sqlite3_finalize(stmt);
-	return err;
-}
-
-int db_insert(sqlite3 *db, struct post *cm)
-{
-	/* insert new post into database */
-	cm->id = db_total(db) + 1;
-	cm->time = time(NULL);
-	char *insert = (char *) malloc(sizeof(char) * strlen(cm->comment) + 1000);
-	static const char *mandatory =
-	"INSERT INTO comments(id, time, ip, text) VALUES(%ld, %ld, \"%s\", \"%s\");";
-	sprintf(insert, mandatory, cm->id, cm->time, cm->ip, cm->comment);
-	int err = db_transaction(db, insert);
-	if (cm->name) /* insert optional fields if any */
-	{
-		const char *name = "UPDATE comments SET name = \"%s\" WHERE id = %ld;";
-		sprintf(insert, name, cm->name, cm->id);
-		err = db_transaction(db, insert);
-	}
-	if (cm->trip)
-	{
-		const char *trip = "UPDATE comments SET trip = \"%s\" WHERE id = %ld;";
-		sprintf(insert, trip, cm->trip, cm->id);
-		err = db_transaction(db, insert);
-	}
-	free(insert);
-	return err;
-}
-
-int db_post_cooldown(sqlite3 *db, const char *ip_addr)
-{
-	/* calculates cooldown timer expressed in seconds remaining */
-	const long current_time = time(NULL);
-	const long delta = current_time - COOLDOWN_SEC;
-	long timer = COOLDOWN_SEC;
-	struct resource res;
-	char sql[100]; /* fetch newest posts only */
-	sprintf(sql, "SELECT * FROM comments WHERE time > %ld;", delta);
-	db_resource_fetch(db, &res, sql);
-	int i;
-	for (i = res.count - 1; i >= 0; i--)
-	{
-		if (!strcmp(ip_addr, res.arr[i].ip))
-		{
-			timer = current_time - res.arr[i].time;
-			break;
-		}
-	}
-	db_resource_free(&res);
-	return COOLDOWN_SEC - timer;
-}
-
-/* stop here */
 
 /* NOTES:
  * on higher optmization levels (-O2), GCC will introduce false positive
@@ -370,6 +304,11 @@ void display_controls(int limit, int offset, int results)
 	fprintf(stdout, "</div>");
 }
 
+long db_total(sqlite3 *db)
+{
+	return 0;
+}
+
 void display_posts(sqlite3 *db, int limit, int offset)
 {
 	/* sanity check */
@@ -400,26 +339,40 @@ void display_posts(sqlite3 *db, int limit, int offset)
 	db_resource_free(&res);
 }
 
-int get_option(const char *get_str, const char *option)
+struct parameters get_params(const char *query, struct board *list)
 {
-	/* returns requested numerical option if found */
-	int opt = 0;
-	if (get_str)
+	/* obtain settings from GET string */
+	unsigned i;
+	struct parameters params = { 0 }; /* HOMEPAGE set to default */
+	char *query_str = strdup(query);
+	if (query_str) /* GET parameter validation */
 	{
-		char *get = strdup(get_str);
-		query_t query; /* parse GET options */
-		query_parse(&query, get);
-		char *val = query_search(&query, option);
-		char *n = val;
-		while (val && *++n) /* is numerical? */
-			if (*n < '0' || *n > '9')
-				val = NULL;
-		opt = (!val) ? 0 : atoi(val);
+		query_t query;
+		query_parse(&query, query_str);
+		free((!query_str) ? NULL : query_str);
+		char *board = query_search(&query, "board");
+		char *thread = query_search(&query, "thread");
+		char *page = query_search(&query, "page");
+		if (board)
+		{
+			for (i = 0; i < list->count; i++)
+				if (!strcmp(list->id[i], board)) /* validate board */
+					params.board_id = strdup(board);
+		}
+		if (params.board_id)
+		{
+			params.mode = INDEX_MODE;
+			params.thread_id = atoi_s(thread);
+			if (params.thread_id > 0)
+				params.mode = THREAD_MODE;
+			else
+				params.page_no = atoi_s(page);
+		}
 		query_free(&query);
-		free(get);
 	}
-	return (opt < 0) ? -opt : opt;
+	return params;
 }
+
 
 int main(void)
 {
@@ -433,84 +386,35 @@ int main(void)
 		fprintf(stdout, "<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
 		return 1;
 	}
+	struct board list; /* fetch list of valid boards */
+	db_board_fetch(db, &list);
+	if (!list.count)
+	{
+		fprintf(stdout, "<h2>No boards found. Did you initialize the database?</h2>");
+		return 1;
+	}
+	struct parameters params = get_params(getenv("QUERY_STRING"), &list);
+
+	fprintf(stdout, "%s", global_template[0]); /* header */
+	fprintf(stdout, header[0], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
+	fprintf(stdout, header[1], "dummy", "thread"); /* post box */
+
+	char *modes[] = { "homepage", "index mode", "threadmode" };
+	fprintf(stdout, "mode %s board: %s thread: %d page: %d", modes[params.mode], params.board_id, params.thread_id, params.page_no);
 	fprintf(stdout, "everything's fine");
 	return 0;
 
-	fprintf(stdout, "%s", header[0]); /* head */
-	fprintf(stdout, header[1], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
-	fprintf(stdout, header[2], "dummy", "thread"); /* post box */
 
-	char *is_cgi = getenv("REQUEST_METHOD"); /* is this a CGI environment? */
-	unsigned POST_len = (!is_cgi) ? 0 : atoi(getenv("CONTENT_LENGTH"));
+	/* footer */
+	float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
+	fprintf(stdout, "<br/><div class=\"footer\">%s db-%d/rev.%d", IDENT, DB_VER, REVISION);
+	#ifndef NDEBUG
+		fprintf(stdout, "-dev");
+	#endif
+	fprintf(stdout, " <a href=\"%s\">[github]</a> ", REPO_URL);
+	if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
+	fprintf(stdout, "</div>");
 
-	if (POST_len > 0) /* POST data received */
-	{
-		char *POST_data = (char *) malloc(sizeof(char) * POST_len + 1);
-		fread(POST_data, POST_len, 1, stdin);
-		POST_data[POST_len] = '\0';
-
-		query_t query;
-		query_parse(&query, POST_data);
-		free(POST_data);
-
-		/* note:
-		 * cm strings stored in query container
-		 * or as static data, do not free them
-		 */
-		struct post cm; /* compose a new post */
-		cm.name = query_search(&query, "name"); /* name and/or tripcode */
-		if (cm.name)
-			strip_whitespace(utf8_rewrite(cm.name));
-		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
-		cm.comment = query_search(&query, "comment"); /* comment body */
-		if (cm.comment)
-			strip_whitespace(utf8_rewrite(cm.comment));
-		cm.ip = getenv("REMOTE_ADDR");
-		if (cm.comment)
-		{
-			int name_count = (!cm.name) ? 0 : utf8_charcount(cm.name);
-			int text_count = utf8_charcount(cm.comment);
-			if (cm.name) /* prevent XSS attempts */
-				xss_sanitize(&cm.name);
-			xss_sanitize(&cm.comment);
-			int timer = db_post_cooldown(db, cm.ip); /* user flooding? */
-
-			if (spam_filter(cm.comment)) /* user spamming? */
-				fprintf(stdout, "<h1>This post is spam, please rewrite it.</h1>%s", refresh);
-			else if (timer > 0)
-				fprintf(stdout, "<h1>Please wait %d more seconds before posting again.</h1>%s", timer, refresh);
-			else if (name_count > NAME_MAX_LENGTH || text_count > COMMENT_MAX_LENGTH || text_count < 1)
-				fprintf(stdout, "<h1>Post rejected.</h1>%s", refresh);
-			else
-			{
-				int err = db_insert(db, &cm); /* insert */
-				if (err == SQLITE_READONLY)
-					fprintf(stdout, "<h1>Post failed. DB is write-protected.</h1>%s", refresh);
-				else
-					fprintf(stdout, "<h1>Post submitted!</h1>%s", refresh);
-			}
-			/* page should refresh shortly */
-		}
-		else
-			fprintf(stdout, "<h1>You cannot post a blank comment.</h1>%s", refresh);
-		query_free(&query);
-	}
-	else /* no POST */
-	{
-		/* check GET options for offset value */
-		int offset = get_option(getenv("QUERY_STRING"), "offset");
-		display_posts(db, POSTS_PER_PAGE, offset);
-
-		/* footer */
-		float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-		fprintf(stdout, "<br/><div class=\"footer\">%s db-%d/rev.%d", IDENT, DB_VER, REVISION);
-		#ifndef NDEBUG
-			fprintf(stdout, "-dev");
-		#endif
-		fprintf(stdout, " <a href=\"%s\">[github]</a> ", REPO_URL);
-		if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
-		fprintf(stdout, "</div>");
-	}
 	fprintf(stdout, "%s", footer);
 	fflush(stdout);
 	sqlite3_close(db);

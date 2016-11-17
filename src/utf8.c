@@ -52,6 +52,18 @@ const char *const fmt[] = {
 };
 static_assert(static_size(fmt) == SUPPORTED_TAGS); /* size check */
 
+int atoi_s(const char *nptr)
+{
+	/* sanitized atoi() for numerical GET/POST options
+	 * returns 0 if nptr contains garbage or is NULL
+	 */
+	const char *s = nptr;
+	while (nptr && *++s)
+		if (*s < '0' || *s > '9')
+			return 0;
+	return (!nptr) ? 0 : abs(atoi(nptr));
+}
+
 int uintlen(unsigned long n)
 {
 	/* return length of 32-bit integer

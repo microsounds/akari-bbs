@@ -21,6 +21,7 @@ enum format_tag {
 };
 
 /* string library */
+int atoi_s(const char *nptr);
 int uintlen(unsigned long n);
 char *strdup(const char *str);
 char *strstr_r(const char *haystack, const char *needle);

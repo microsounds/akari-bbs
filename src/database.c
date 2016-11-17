@@ -44,6 +44,7 @@ const char *const sqlite3_err[UCHAR_MAX] = {
 	enum_string(SQLITE_WARNING), enum_string(SQLITE_ROW),
 	enum_string(SQLITE_DONE)
 };
+#undef enum_string
 
 static char *sql_generate(const char *fmt, ...)
 {
@@ -445,7 +446,7 @@ long db_board_fetch(sqlite3 *db, struct board *ls)
 	 * returns number of items fetched
 	 */
 	static const char *const sql[] = {
-		"SELECT COUNT(id) FROM boards;"
+		"SELECT COUNT(id) FROM boards;",
 		"SELECT id, name, desc FROM boards ORDER BY id;"
 	};
 	ls->count = db_retrieval(db, sql[0]);

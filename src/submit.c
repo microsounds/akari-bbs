@@ -139,11 +139,7 @@ int main(void)
 			cm.parent_id = cm.id;
 		else if (parent_str) /* REPLY_MODE */
 		{
-			char *s = parent_str;
-			while (*++s) /* is numerical string? */
-				if (*s < '0' || *s > '9')
-					abort_now("<h2>Malformed parent thread id.</h2>");
-			cm.parent_id = abs(atoi(parent_str));
+			cm.parent_id = atoi_s(parent_str);
 			if (!db_validate_parent(db, cm.board_id, cm.parent_id))
 				abort_now("<h2>Specified thread doesn't exist.</h2>");
 			if (db_status_flags(db, cm.board_id, cm.parent_id) & THREAD_LOCKED)
