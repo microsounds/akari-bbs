@@ -28,7 +28,7 @@ $(OBJ)/%.o: $(SRC)/%.c $(wildcard $(INC)/*.h)
 
 # target: release - reset and build stripped binaries only
 release: DEBUG = -D NDEBUG
-release: CC += -s
+release: CC += -s -march=native
 release: clean all
 	rm -rf $(OBJ)/
 

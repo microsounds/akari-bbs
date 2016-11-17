@@ -153,13 +153,11 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	 * assuming inputs are already validated
 	 * if post_id > parent_id, append as a permalink
 	 */
-	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
-	const char *noscript =
-		"<noscript>"
-			"<div class=\"navi controls\">"
-				"[<a href=\"%s\">Click here</a>] if you are not redirected."
-			"</div>"
-		"</noscript>";
+	const char *redir = "<meta http-equiv=\"refresh\" content=\"2; url=%s\">";
+	const char *redir_link =
+		"<div>"
+			"If you are not redirected shortly, please [<a href=\"%s\">click here</a>]."
+		"</div>";
 	const char *url = "%s?board=%s&thread=%ld";
 	const char *permalink = "#p%ld";
 	char *buf[4]  = { 0 }; /* storage */
@@ -172,7 +170,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 		strcat(buf[0], buf[1]);
 	}
 	buf[2] = sql_generate(redir, buf[0]);
-	buf[3] = sql_generate(noscript, buf[0]);
+	buf[3] = sql_generate(redir_link, buf[0]);
 	fprintf(stdout, "%s%s", buf[2], buf[3]);
 	unsigned i;
 	for (i = 0; i < static_size(buf); i++)
@@ -322,10 +320,7 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 		}
 	}
 	for (i = 0; i < static_size(sql); i++)
-	{
-		fprintf(stdout, "%u: %s<br/>", i, cmd[i]);
 		free((!cmd[i]) ? NULL : cmd[i]);
-	}
 	return err;
 }
 

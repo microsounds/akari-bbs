@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 # initializes database and sets permissions
 # you must run this before starting
@@ -34,5 +34,4 @@ fi
 
 chown $DBOWNER $DBDIR
 chown $DBOWNER $DBDIR/$DBFILE
-
 exit 0

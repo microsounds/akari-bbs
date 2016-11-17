@@ -47,7 +47,10 @@ a > #bannertext
 	font-weight: bold;
 }
 
-#boardtitle { margin: 2px; font-size: 22px; color: #646464; float: right; }
+#boardtitle { margin: 2px; font-size: 26px; color: #646464; float: right; }
+
+/* front page */
+
 .title { margin: 2px; font-size: 22px; color: #646464; font-weight: bold; font-style: italic; }
 .center { display: table; width: 300px;  margin-right: auto; margin-left: auto; }
 .invisible { display: none; }
@@ -60,7 +63,8 @@ a > #bannertext
 	75% { background-color: #D5B2FE; }
 	100% { background-color: #B3AFFF; }
 }
-.frame
+
+.masthead
 {
 	padding: 6px;
 	border-left: 5px solid #9793D7;
@@ -70,6 +74,24 @@ a > #bannertext
 	animation: pulsate 10s infinite;
 	background-color: #B3AFFF;
 }
+
+.directory
+{
+	width: 50%;
+	background-color: lightgray;
+	color: #646464;
+	font-size: 12px;
+	padding: 7px 10px 4px 10px;
+	background-color: lightgray;
+	border-bottom: 1px solid #DBAFFF;
+	border-right: 1px solid #DBAFFF;
+	box-shadow: 3px 3px 7px 0px gray;
+}
+
+.cell { float: left; width: 300px; }
+.dirheading { font-size: 20px; font-style: italic; font-weight: bold; }
+.dirname { font-size: 28px; }
+.dirdesc { font-size: 12px; font-style: italic; }
 
 /* navigation */
 

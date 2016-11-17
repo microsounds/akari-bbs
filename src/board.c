@@ -16,32 +16,39 @@
  * messageboard user interface
  */
 
-/* html goes in separate templates.h / templates.c */
-/* input form:
-	just give all the inputs a class and set them to width: 100%?
- */
+const char *const static_template[] = {
+	/* header */
+	"<!DOCTYPE html>"
+	"<html lang=\"en-US\">"
+	"<head>"
+		"<title>%s - Akari BBS</title>"
+		"<meta charset=\"UTF-8\" />"
+		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
+		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
+		"<script src=\"js/script.js\"></script>"
+	"</head>"
+	"<body>",
+	/* footer */
+		"<br/>"
+		"<div class=\"footer\" style=\"text-align:center;\">"
+			"Powered by %s rev.%d/db-%d<br/>"
+			"akari-bbs (c) %d microsounds, released under the GNU General Public License v3 or later.<br/>"
+			"All trademarks and copyrights on this page are owned by their respective parties."
+			"Comments are owned by the Poster."
+		"</div>"
+	"</body>"
+	"</html>"
+};
 
-#define abort_now(msg) do { printf(msg); exit(1); } while (0)
-
-const char *const header[] = {
-/* header */
-"<!DOCTYPE html>"
-"<html lang=\"en-US\">"
-"<head>"
-	"<title>Akari BBS</title>"
-	"<meta charset=\"UTF-8\" />"
-	"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
-	"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
-	"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
-	"<script src=\"js/script.js\"></script>"
-"</head>",
-
+const char *const home_template[] = {
 /* banner format string */
+
 "<body>"
 	"<div class=\"header\">"
 		"<a href=\"/\"><img id=\"banner\" src=\"%s/%d.png\" alt=\"Akari BBS\">"
 			"<div id=\"bannertext\">Akari BBS</div>"
-		"</a>",
+		"</a>"
 
 /* post box + board_id format string */
 		"<div id=\"postbox\">"
@@ -70,6 +77,7 @@ const char *footer = "</body></html>";
 const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
+	- html goes in separate templates.h / templates.c
 	- insert post number into localStorage to emulate (You) quotes
 	- add admin panel w/ login
 	- db_fetch_parent() to provide correct quotelinks in the future
@@ -417,10 +425,16 @@ int main(void)
 {
 	clock_t start = clock();
 	srand(time(NULL));
+	int err;
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
-	if (sqlite3_open_v2(DATABASE_LOC, &db, 1, NULL)) /* read-only mode */
-		abort_now("<h2>[!] Database missing!\nRun 'init.sh' to continue.</h2>\n");
+	if ((err = sqlite3_open_v2(DATABASE_LOC, &db, 1, NULL))) /* read-only mode */
+	{
+		fprintf(stdout, "<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
+		return 1;
+	}
+	fprintf(stdout, "everything's fine");
+	return 0;
 
 	fprintf(stdout, "%s", header[0]); /* head */
 	fprintf(stdout, header[1], BANNER_LOC, rand() % BANNER_COUNT); /* banner */

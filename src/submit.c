@@ -162,8 +162,8 @@ int main(void)
 		cm.del_pass = "dummy";
 
 		/* user input field valiation
-		 * sanitation comes last because it interferes with
-		 * character counts and tripcode passwords
+		 * sanitation/character escapes come last as they interfere
+		 * with character count/tripcode passwords
 		 */
 		cm.name = query_search(&query, "name"); /* name and/or tripcode */
 		cm.subject = query_search(&query, "subject"); /* subject */
@@ -186,6 +186,7 @@ int main(void)
 		}
 		/* generate tripcode from #password if name provided */
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
+
 		for (i = 0; i < static_size(field); i++)
 			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
 
