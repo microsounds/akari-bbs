@@ -55,6 +55,10 @@ extern const char *const sqlite3_err[];
 /* redirects */
 void thread_redirect(const char *board_id, long parent_id, long post_id);
 
+/* index retrieval */
+long db_retrieval(sqlite3 *db, const char *sql);
+long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n);
+
 /* validation */
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id);
 int db_validate_board(sqlite3 *db, const char *board_id);

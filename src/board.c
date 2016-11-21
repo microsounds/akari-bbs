@@ -304,11 +304,6 @@ void display_controls(int limit, int offset, int results)
 	fprintf(stdout, "</div>");
 }
 
-long db_total(sqlite3 *db)
-{
-	return 0;
-}
-
 void display_posts(sqlite3 *db, int limit, int offset)
 {
 	/* sanity check */
@@ -328,7 +323,7 @@ void display_posts(sqlite3 *db, int limit, int offset)
 		fprintf(stdout, "<h2>There aren't that many posts here.</h2>");
 	else
 	{
-		long total = db_total(db);
+		long total = 0;
 		long pages = (float) total / limit + 1;
 		long current = (float) offset / limit + 1;
 		fprintf(stdout, "<br/>Page %ld of %ld", current, pages);
@@ -339,11 +334,80 @@ void display_posts(sqlite3 *db, int limit, int offset)
 	db_resource_free(&res);
 }
 
+void display_postform(int mode, const char *board_id, const long thread_id)
+{
+	static const char *const postform[] = {
+		"<div id=\"postbox\">"
+		"<table class=\"form\" cellspacing=\"0\">"
+			"<form action=\"/submit.cgi\" method=\"post\" id=\"postform\">",
+		/* mode-dependent options */
+			"<div class=\"formtitle indexmode\">[!!] Index Mode: Start a New Thread!</div>",
+			"<div class=\"formtitle threadmode\">[!!] Thread Mode: Reply to Thread No.%ld</div>",
+		/* hidden fields */
+			"<input type=\"hidden\" name=\"board\" value=\"%s\">"
+			"<input type=\"hidden\" name=\"mode\" value=\"%s\">"
+			"<input type=\"hidden\" name=\"parent\" value=\"%ld\">",
+		/* visible fields */
+			"<tr>"
+				"<td><div class=\"desc\">Name</div></td>"
+				"<td><input class=\"field\" type=\"text\" name=\"name\" maxlength=\"%d\" placeholder=\"%s\"></td>"
+			"</tr>"
+			"<tr>"
+				"<td><div class=\"desc\">Options</div></td>"
+				"<td><input class=\"field\" type=\"text\" name=\"options\" maxlength=\"%d\"></td>"
+			"</tr>"
+			"<tr>"
+				"<td><div class=\"desc\">Subject</div></td>"
+				"<td>"
+					"<input class=\"field\" type=\"text\" name=\"subject\" maxlength=\"%d\">"
+					"<input type=\"submit\" value=\"Submit\">"
+				"</td>"
+			"</tr>"
+			"<tr>"
+				"<td><div class=\"desc\">Comment</div></td>"
+				"<td>"
+					"<textarea class=\"field\" form=\"postform\" style=\"width:98%\" id=\"pBox\" name=\"comment\" "
+					"rows=\"4\" maxlength=\"%d\" placeholder=\"Limit %d characters\"></textarea>"
+				"</td>"
+			"</tr>"
+			"</form>"
+		"</table>",
+		/* tooltips */
+		"<span class=\"help right\">"
+			"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
+			"Supported: "
+			"<b>Tripcodes</b> "
+			"<a class=\"tooltip\" href=\"#\" msg=\"Enter your name as &quot;name#password&quot; to generate a tripcode.\">[?]</a>, "
+			"<b>Markup</b> "
+			"<a class=\"tooltip\" href=\"#\" msg=\"Supported markup: [spoiler], [code]. Implicit end tags are added if missing.\">[?]</a>"
+		"</span>"
+		"</div>"
+	};
+
+	fprintf(stdout, postform[0]);
+	if (mode == THREAD_MODE)
+	{
+		fprintf(stdout, postform[2], thread_id);
+		fprintf(stdout, postform[3], board_id, "reply", thread_id);
+	}
+	else /* INDEX_MODE */
+	{
+		fprintf(stdout, postform[1]);
+		fprintf(stdout, postform[3], board_id, "thread", 0);
+	}
+	/* client-side character limits */
+	fprintf(stdout, postform[4], NAME_MAX_LENGTH, DEFAULT_NAME,
+		OPTIONS_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH, COMMENT_MAX_LENGTH);
+	fprintf(stdout, postform[5]);
+}
+
+
+
 struct parameters get_params(const char *query, struct board *list)
 {
 	/* obtain settings from GET string */
 	unsigned i;
-	struct parameters params = { 0 }; /* HOMEPAGE set to default */
+	struct parameters params = { 0 }; /* default option is HOMEPAGE */
 	char *query_str = strdup(query);
 	if (query_str) /* GET parameter validation */
 	{
@@ -366,13 +430,16 @@ struct parameters get_params(const char *query, struct board *list)
 			if (params.thread_id > 0)
 				params.mode = THREAD_MODE;
 			else
+			{
 				params.page_no = atoi_s(page);
+				if (params.page_no > MAX_ACTIVE_THREADS / THREADS_PER_PAGE)
+					params.page_no = 0;
+			}
 		}
 		query_free(&query);
 	}
 	return params;
 }
-
 
 int main(void)
 {
@@ -390,7 +457,7 @@ int main(void)
 	db_board_fetch(db, &list);
 	if (!list.count)
 	{
-		fprintf(stdout, "<h2>No boards found. Did you initialize the database?</h2>");
+		fprintf(stdout, "<h2>No available boards. Please add one.</h2>");
 		return 1;
 	}
 	struct parameters params = get_params(getenv("QUERY_STRING"), &list);
@@ -399,11 +466,12 @@ int main(void)
 	fprintf(stdout, header[0], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
 	fprintf(stdout, header[1], "dummy", "thread"); /* post box */
 
-	char *modes[] = { "homepage", "index mode", "threadmode" };
-	fprintf(stdout, "mode %s board: %s thread: %d page: %d", modes[params.mode], params.board_id, params.thread_id, params.page_no);
-	fprintf(stdout, "everything's fine");
-	return 0;
+	display_postform(params.mode, params.board_id, params.thread_id);
 
+
+	char *modes[] = { "homepage", "index mode", "threadmode" };
+	fprintf(stdout, "mode %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
+	return 0;
 
 	/* footer */
 	float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
@@ -417,6 +485,7 @@ int main(void)
 
 	fprintf(stdout, "%s", footer);
 	fflush(stdout);
+	db_board_free(&list);
 	sqlite3_close(db);
 	return 0;
 }

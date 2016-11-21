@@ -145,7 +145,7 @@ a > #bannertext
 	); /* striped background */
 }
 .threadmode { background-color: #DBAFFF; }
-.boardmode { background-color: #AACCFF; }
+.indexmode { background-color: #AACCFF; }
 
 .form { width: 100%; height: 100%; }
 .field { width: 200px; padding: 2px; border: 1px solid #B3AFFF; }

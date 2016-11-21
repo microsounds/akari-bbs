@@ -116,7 +116,7 @@ static int db_transaction(sqlite3 *db, const char *sql)
 	return (err == SQLITE_DONE) ? SQLITE_OK : err;
 }
 
-static long db_retrieval(sqlite3 *db, const char *sql)
+long db_retrieval(sqlite3 *db, const char *sql)
 {
 	/* 1-shot SQL SELECT integer value retrieval
 	 * returns first value from first column
@@ -129,7 +129,7 @@ static long db_retrieval(sqlite3 *db, const char *sql)
 	return value;
 }
 
-static long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n)
+long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n)
 {
 	/* 1-shot SQL SELECT integer array retrieval
 	 * retrieves n integer values from first column
