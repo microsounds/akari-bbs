@@ -19,6 +19,7 @@
 struct parameters {
 	enum {
 		HOMEPAGE,
+		NOT_FOUND,
 		INDEX_MODE,
 		THREAD_MODE
 	} mode;
@@ -27,12 +28,14 @@ struct parameters {
 	long page_no;
 };
 
+/* dynamically generate title tags */
+
 const char *const global_template[] = {
 	/* header */
 	"<!DOCTYPE html>"
 	"<html lang=\"en-US\">"
 	"<head>"
-		"<title>%s - Akari BBS</title>"
+		"<title>Akari BBS</title>"
 		"<meta charset=\"UTF-8\" />"
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
@@ -43,47 +46,13 @@ const char *const global_template[] = {
 	/* footer */
 		"<br/>"
 		"<div class=\"footer\" style=\"text-align:center;\">"
-			"Powered by %s rev.%d/db-%d<br/>"
+			"Powered by %s rev.%d/db-%d %s<br/>"
 			"All trademarks and copyrights on this page are owned by their respective parties."
 			"Comments are owned by the Poster."
 		"</div>"
 	"</body>"
 	"</html>"
 };
-
-const char *const header[] = {
-/* banner format string */
-"<body>"
-	"<div class=\"header\">"
-		"<a href=\"/\"><img id=\"banner\" src=\"%s/%d.png\" alt=\"Akari BBS\">"
-			"<div id=\"bannertext\">Akari BBS</div>"
-		"</a>"
-
-/* post box + board_id format string */
-		"<div id=\"postbox\">"
-			"[!!] Post a comment!:"
-			"<form action=\"board.cgi\" method=\"post\" id=\"postform\">"
-				"Name (optional):"
-				"<input type=\"text\" name=\"name\" size=\"25\" maxlength=\"75\" placeholder=\"Anonymous\">"
-				"<input type=\"submit\" value=\"Submit\"><br/>"
-				"<textarea form=\"postform\" id=\"pBox\" name=\"comment\" rows=\"3\" cols=\"52\" "
-				"maxlength=\"2000\" placeholder=\"2000 characters max.\"></textarea>"
-				"<input type=\"hidden\" name=\"board\" value=\"%s\">"
-				"<input type=\"hidden\" name=\"mode\" value=\"%s\">"
-			"</form>"
-			"<span class=\"help\" style=\"float:right;\">"
-				"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
-				"Supported: <b>Tripcodes</b> "
-				"<a class=\"tooltip\" href=\"#\" msg=\"Enter your name as &quot;name#password&quot; to generate a tripcode.\">[?]</a>"
-				", <b>Markup</b> "
-				"<a class=\"tooltip\" href=\"#\" msg=\"Supported markup: [spoiler], [code]. Implicit end tags are added if missing.\">[?]</a>"
-			"</span>"
-		"</div>"
-	"</div>"
-	"<div class=\"reset\"></div>"
-};
-const char *footer = "</body></html>";
-const char *refresh = "<meta http-equiv=\"refresh\" content=\"2\" />";
 
 /* TODO:
 	- html goes in separate templates.h / templates.c
@@ -334,8 +303,60 @@ void display_posts(sqlite3 *db, int limit, int offset)
 	db_resource_free(&res);
 }
 
+void display_headers(const struct board *list, const char *board_id)
+{
+	/* top-most headers and rotating banners */
+	static const char *const headers[] = {
+		"<div id=\"boardtitle\"><b>/%s/</b> - %s</div>",
+		"<div class=\"header\">"
+			"<a href=\"/\"><img id=\"banner\" src=\"%s/%u.png\" alt=\"%s\">"
+			"<div id=\"bannertext\">%s</div>"
+		"</a>"
+	};
+	unsigned i, sel = rand() % BANNER_COUNT;
+	for (i = 0; i < list->count; i++)
+		if (!strcmp(list->id[i], board_id))
+			break;
+	fprintf(stdout, headers[0], board_id, list->name[i]);
+	fprintf(stdout, headers[1], BANNER_LOC, sel, IDENT_FULL, IDENT_FULL);
+}
+
+void display_boardlist(const struct board *list)
+{
+	/* provide links to every available board */
+	static const char *const navi[] = {
+		"<div>",
+		"<span class=\"navi boardlist\">[ ",
+		"<a href=\"/?board=%s\" title=\"%s\">%s</a>",
+		" ]</span>",
+		"</div>"
+	};
+	unsigned i;
+	for (i = 0; i < 2; i++)
+		fprintf(stdout, navi[i]);
+	for (i = 0; i < list->count; i++)
+	{
+		fprintf(stdout, navi[2], list->id[i], list->name[i], list->id[i]);
+		if (i != list->count - 1)
+			fprintf(stdout, " / ");
+	}
+	fprintf(stdout, navi[3]);
+
+	/* insert repo link */
+	static const char *repo = "<a href=\"%s\" title=\"%s\">%s</a>";
+	for (i = 1; i < static_size(navi); i++)
+	{
+		if (i == 2)
+			fprintf(stdout, repo, REPO_URL, "Licensed GPLv3+", "github");
+		else
+			fprintf(stdout, navi[i]);
+	}
+}
+
+
 void display_postform(int mode, const char *board_id, const long thread_id)
 {
+	/* generate post submission form */
 	static const char *const postform[] = {
 		"<div id=\"postbox\">"
 		"<table class=\"form\" cellspacing=\"0\">"
@@ -382,6 +403,7 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 			"<a class=\"tooltip\" href=\"#\" msg=\"Supported markup: [spoiler], [code]. Implicit end tags are added if missing.\">[?]</a>"
 		"</span>"
 		"</div>"
+		"<div class=\"reset\"></div><br/>"
 	};
 
 	fprintf(stdout, postform[0]);
@@ -401,7 +423,37 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 	fprintf(stdout, postform[5]);
 }
 
+void homepage_mode(void)
+{
+	return;
+}
 
+void not_found(const char *refer)
+{
+	static const char *error =
+	"<style>h2 { color: #424242; } a { text-decoration: none; } a:hover { color: red; }</style>"
+	"<div class=\"pContainer\">"
+		"<span class=\"pName\">%s rev.%d/db-%d</span>"
+		"<div class=\"pComment\">"
+		"<h2>404 - Not Found</h2>"
+		"<span>"
+			"The requested URL doesn't refer to any existing resource on this server.<br/>"
+			"It may have been pruned or deleted."
+		"</span>"
+		"<br/>"
+		"<div>[<a href=\"%s\">Go back</a>]</div>"
+	"</div></div>";
+	fprintf(stdout, error, IDENT, REVISION, DB_VER, (!refer) ? "/" : refer);
+}
+
+void index_mode(sqlite3 *db, const char *board_id, const int page)
+{
+	return;
+}
+void thread_mode(sqlite3 *db, const char *board_id, const long thread_id)
+{
+	return;
+}
 
 struct parameters get_params(const char *query, struct board *list)
 {
@@ -423,7 +475,9 @@ struct parameters get_params(const char *query, struct board *list)
 				if (!strcmp(list->id[i], board)) /* validate board */
 					params.board_id = strdup(board);
 		}
-		if (params.board_id)
+		if (!params.board_id)
+			params.mode = NOT_FOUND;
+		else
 		{
 			params.mode = INDEX_MODE;
 			params.thread_id = atoi_s(thread);
@@ -460,31 +514,48 @@ int main(void)
 		fprintf(stdout, "<h2>No available boards. Please add one.</h2>");
 		return 1;
 	}
+	fprintf(stdout, "%s", global_template[0]); /* head */
 	struct parameters params = get_params(getenv("QUERY_STRING"), &list);
+	if (params.mode == THREAD_MODE) /* check for 404 */
+	{
+		long parent_id = db_find_parent(db, params.board_id, params.thread_id);
+		if (!parent_id)
+			params.mode = NOT_FOUND;
+		else if (params.thread_id != parent_id)
+		{
+			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", parent_id);
+			thread_redirect(params.board_id, parent_id, params.thread_id);
+			goto abort; /* abort and redirect user to parent thread */
+		}
+	}
+	if (params.mode == INDEX_MODE || params.mode == THREAD_MODE)
+	{
+		display_headers(&list, params.board_id);
+		display_boardlist(&list);
+		display_postform(params.mode, params.board_id, params.thread_id);
+	}
+	switch (params.mode)
+	{
+		case HOMEPAGE: homepage_mode(); break;
+		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); break;
+		case INDEX_MODE: index_mode(db, params.board_id, params.page_no); break;
+		case THREAD_MODE: thread_mode(db, params.board_id, params.thread_id); break;
+	}
 
-	fprintf(stdout, "%s", global_template[0]); /* header */
-	fprintf(stdout, header[0], BANNER_LOC, rand() % BANNER_COUNT); /* banner */
-	fprintf(stdout, header[1], "dummy", "thread"); /* post box */
-
-	display_postform(params.mode, params.board_id, params.thread_id);
-
-
-	char *modes[] = { "homepage", "index mode", "threadmode" };
+	char *modes[] = { "homepage", "404 NOT FOUND", "index mode", "thread mode" };
 	fprintf(stdout, "mode %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
-	return 0;
 
-	/* footer */
+
+	/* footer
+	 * version info footer with page generation time
+	 * this won't work on all systems, eg. VMs
+	 */
 	float delta = ((float) (clock() - start) / CLOCKS_PER_SEC) * 1000;
-	fprintf(stdout, "<br/><div class=\"footer\">%s db-%d/rev.%d", IDENT, DB_VER, REVISION);
-	#ifndef NDEBUG
-		fprintf(stdout, "-dev");
-	#endif
-	fprintf(stdout, " <a href=\"%s\">[github]</a> ", REPO_URL);
-	if (delta) fprintf(stdout, "-- completed in %.3fms", delta);
-	fprintf(stdout, "</div>");
+	char pageload[100];
+	sprintf(pageload, "-- completed in %.3fms.", delta);
+	fprintf(stdout, global_template[1], IDENT, REVISION, DB_VER, (!delta) ? "" : pageload);
 
-	fprintf(stdout, "%s", footer);
-	fflush(stdout);
+	abort: fflush(stdout);
 	db_board_free(&list);
 	sqlite3_close(db);
 	return 0;

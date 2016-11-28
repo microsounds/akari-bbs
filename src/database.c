@@ -154,7 +154,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	 * assuming inputs are already validated
 	 * if post_id > parent_id, append as a permalink
 	 */
-	const char *redir = "<meta http-equiv=\"refresh\" content=\"2; url=%s\">";
+	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
 	const char *redir_link =
 		"<div>"
 			"If you are not redirected shortly, please [<a href=\"%s\">click here</a>]."
@@ -226,7 +226,7 @@ long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 	 */
 	static const char *sql =
 		"SELECT parent_id FROM posts "
-			"WHERE board_id = \"%s\" AND post_id = %ld;";
+			"WHERE board_id = \"%s\" AND id = %ld;";
 	char *cmd = sql_generate(sql, board_id, id);
 	long parent_id = db_retrieval(db, cmd);
 	free(cmd);
