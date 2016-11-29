@@ -24,6 +24,7 @@
 #define IDENT_FULL "Akari BBS"
 #define TAGLINE "Lightweight Messageboard System"
 #define AUTHOR "microsounds"
+#define LICENSE "Licensed GPL v3+"
 #define REPO_URL "https://github.com/microsounds/akari-bbs"
 #define REVISION 14 /* revision no. */
 #define DB_VER 4

@@ -353,7 +353,7 @@ void display_boardlist(const struct board *list, const char *title)
 	for (i = 1; i < static_size(navi); i++)
 	{
 		if (i == 2)
-			fprintf(stdout, repo, REPO_URL, "Licensed GPLv3+", "github");
+			fprintf(stdout, repo, REPO_URL, LICENSE, "github");
 		else
 			fprintf(stdout, navi[i], "");
 	}
@@ -430,11 +430,42 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 
 void homepage_mode(const struct board *list)
 {
-	static const char *homepage[] = {
-		" sakjsjakjs ", " ajskjaksjjaks"
+	static const char *masthead =
+		"<div class=\"masthead center\">"
+			"<div class=\"header\">"
+				"<a href=\"/\"><img id=\"banner\" src=\"%s/%d.png\" alt=\"%s\"></a>"
+				"<div class=\"title\">%s</div>"
+				"<div class=\"footer\">%s</div>"
+				"<div class=\"footer\">Powered by %s rev.%d/db-%d</div>"
+				"<span class=\"footer\">%s</span>"
+				"<span class=\"navi boardlist\">[<a href=\"%s\">github</a>]</span>"
+			"</div>"
+		"</div>"
+		"<br/>";
+
+	static const char *directory[] = {
+		"<div class=\"directory center\">"
+			"<div class=\"dirheading\">Textboards</div>"
+			"<div class=\"line\"></div>",
+		/* listing */
+			"<div class=\"cell\">"
+				"<div class=\"navi dirname\"><a href=\"/?board=%s\">%s</a></div>"
+				"<div class=\"navi dirdesc\">%s</div>"
+			"</div>",
+		"</div><br/>"
 	};
 	display_boardlist(list, "Boards: ");
-	return;
+	fprintf(stdout, masthead, BANNER_LOC, rand() % BANNER_COUNT, IDENT_FULL,
+		    IDENT_FULL, TAGLINE, IDENT, REVISION, DB_VER, LICENSE, REPO_URL);
+	unsigned i, j;
+	for (i = 0; i < static_size(directory); i++)
+	{
+		if (i == 1)
+			for (j = 0; j < list->count; j++)
+				fprintf(stdout, directory[i], list->id[j], list->name[j], list->desc[j]);
+		else
+			fprintf(stdout, directory[i]);
+	}
 }
 
 void not_found(const char *refer)
