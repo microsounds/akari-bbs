@@ -62,12 +62,14 @@ Backwards-compatibility for databases created by older versions of this software
    ```ini
    server.modules += "mod_cgi"
    cgi.assign = ( ".cgi"  => "" )
+   index-file.names = "board.cgi"
+   server.error-handler-404 = "/board.cgi?404"
    ```
 3. Copy repo to your selected `server.document-root` location.
 4. Build project with `make release`.
 5. Initialize database and give `www-data` write permission by running `./init.sh` as root.
 6. Enable and start Lighttpd using `service` or `systemctl`, depending on your distro.
-7. Confirm that everything is working by visiting `localhost/akari-bbs/board.cgi` in your browser.
+7. Confirm that everything is working by visiting `localhost` in your browser.
   * If posting doesn't work, it means `www-data` is not the owner of the database file.
 
 ## License

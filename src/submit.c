@@ -208,7 +208,7 @@ int main(void)
 				fprintf(stdout, ">>> Post No.%ld submitted!</h2>", cm.id);
 			}
 			else /* THREAD_MODE */
-				fprintf(stdout, "<h2>Thread No.%ld submitted!</h2>", cm.id);
+				fprintf(stdout, "<h2>Thread No.%ld created!</h2>", cm.id);
 			thread_redirect(cm.board_id, cm.parent_id, cm.id); /* redirect */
 		}
 		else if (err == SQLITE_BUSY && attempts < INSERT_MAX_RETRIES)

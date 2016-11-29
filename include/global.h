@@ -28,14 +28,16 @@
 #define REVISION 14 /* revision no. */
 #define DB_VER 4
 
-/* static resources */
+/* static resources
+ * all anchor links should start with absolute / document root
+ */
 #define DATABASE_LOC "db/database.sqlite3"
 #define BOARD_SCRIPT "/board.cgi"
 #define SUBMIT_SCRIPT "/submit.cgi"
 
 /* rotating banners */
 #define BANNER_COUNT 625
-#define BANNER_LOC "img/banner"
+#define BANNER_LOC "/img/banner"
 
 /* thread constants */
 #define THREAD_BUMP_LIMIT 350

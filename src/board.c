@@ -16,6 +16,12 @@
  * messageboard user interface
  */
 
+
+/*
+	>>12345
+	if requested ID is not found in the thread, search through /api/12345 and display that
+ */
+
 struct parameters {
 	enum {
 		HOMEPAGE,
@@ -28,19 +34,17 @@ struct parameters {
 	long page_no;
 };
 
-/* dynamically generate title tags */
-
 const char *const global_template[] = {
 	/* header */
 	"<!DOCTYPE html>"
 	"<html lang=\"en-US\">"
 	"<head>"
-		"<title>Akari BBS</title>"
+		"<title>%s</title>" /* dynamically generate title in the future */
 		"<meta charset=\"UTF-8\" />"
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
-		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
-		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
-		"<script src=\"js/script.js\"></script>"
+		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/img/favicon.ico\" />"
+		"<link rel=\"stylesheet\" type=\"text/css\" href=\"/css/style.css\" />"
+		"<script src=\"/js/script.js\"></script>"
 	"</head>"
 	"<body>",
 	/* footer */
@@ -263,7 +267,7 @@ void display_controls(int limit, int offset, int results)
 {
 	/* display controls for the user */
 	fprintf(stdout, "<div class=\"nav\">");
-	static const char *link =" <a href=\"board.cgi?offset=%d\"><b>%s</b></a> ";
+	static const char *link =" <a href=\"/board.cgi?offset=%d\"><b>%s</b></a> ";
 	if (offset - limit >= 0)
 		fprintf(stdout, link, offset - limit, "&lt;&lt; Next");
 	if (offset > 0)
@@ -321,19 +325,21 @@ void display_headers(const struct board *list, const char *board_id)
 	fprintf(stdout, headers[1], BANNER_LOC, sel, IDENT_FULL, IDENT_FULL);
 }
 
-void display_boardlist(const struct board *list)
+void display_boardlist(const struct board *list, const char *title)
 {
-	/* provide links to every available board */
+	/* provide links to every available board
+	 * accepts an optional title field
+	 */
 	static const char *const navi[] = {
 		"<div>",
-		"<span class=\"navi boardlist\">[ ",
+		"<span class=\"navi boardlist\">%s[ ",
 		"<a href=\"/?board=%s\" title=\"%s\">%s</a>",
 		" ]</span>",
 		"</div>"
 	};
 	unsigned i;
 	for (i = 0; i < 2; i++)
-		fprintf(stdout, navi[i]);
+		fprintf(stdout, navi[i], (!title) ? "" : title);
 	for (i = 0; i < list->count; i++)
 	{
 		fprintf(stdout, navi[2], list->id[i], list->name[i], list->id[i]);
@@ -349,10 +355,9 @@ void display_boardlist(const struct board *list)
 		if (i == 2)
 			fprintf(stdout, repo, REPO_URL, "Licensed GPLv3+", "github");
 		else
-			fprintf(stdout, navi[i]);
+			fprintf(stdout, navi[i], "");
 	}
 }
-
 
 void display_postform(int mode, const char *board_id, const long thread_id)
 {
@@ -360,7 +365,7 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 	static const char *const postform[] = {
 		"<div id=\"postbox\">"
 		"<table class=\"form\" cellspacing=\"0\">"
-			"<form action=\"/submit.cgi\" method=\"post\" id=\"postform\">",
+			"<form action=\"%s\" method=\"post\" id=\"postform\">",
 		/* mode-dependent options */
 			"<div class=\"formtitle indexmode\">[!!] Index Mode: Start a New Thread!</div>",
 			"<div class=\"formtitle threadmode\">[!!] Thread Mode: Reply to Thread No.%ld</div>",
@@ -406,7 +411,7 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 		"<div class=\"reset\"></div><br/>"
 	};
 
-	fprintf(stdout, postform[0]);
+	fprintf(stdout, postform[0], SUBMIT_SCRIPT);
 	if (mode == THREAD_MODE)
 	{
 		fprintf(stdout, postform[2], thread_id);
@@ -423,8 +428,12 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 	fprintf(stdout, postform[5]);
 }
 
-void homepage_mode(void)
+void homepage_mode(const struct board *list)
 {
+	static const char *homepage[] = {
+		" sakjsjakjs ", " ajskjaksjjaks"
+	};
+	display_boardlist(list, "Boards: ");
 	return;
 }
 
@@ -433,7 +442,7 @@ void not_found(const char *refer)
 	static const char *error =
 	"<style>h2 { color: #424242; } a { text-decoration: none; } a:hover { color: red; }</style>"
 	"<div class=\"pContainer\">"
-		"<span class=\"pName\">%s rev.%d/db-%d</span>"
+		"<span class=\"pName\">%s <i>rev.%d/db-%d</i></span>"
 		"<div class=\"pComment\">"
 		"<h2>404 - Not Found</h2>"
 		"<span>"
@@ -446,12 +455,21 @@ void not_found(const char *refer)
 	fprintf(stdout, error, IDENT, REVISION, DB_VER, (!refer) ? "/" : refer);
 }
 
-void index_mode(sqlite3 *db, const char *board_id, const int page)
+/* void index_mode(sqlite3 *db, const char *board_id, const int page) */
+void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
+	display_headers(list, params->board_id);
+	display_boardlist(list, NULL);
+	display_postform(params->mode, params->board_id, 0);
 	return;
 }
-void thread_mode(sqlite3 *db, const char *board_id, const long thread_id)
+
+/*void thread_mode(sqlite3 *db, const char *board_id, const long thread_id) */
+void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
+	display_headers(list, params->board_id);
+	display_boardlist(list, NULL);
+	display_postform(params->mode, params->board_id, params->thread_id);
 	return;
 }
 
@@ -514,7 +532,7 @@ int main(void)
 		fprintf(stdout, "<h2>No available boards. Please add one.</h2>");
 		return 1;
 	}
-	fprintf(stdout, "%s", global_template[0]); /* head */
+	fprintf(stdout, global_template[0], IDENT_FULL); /* head */
 	struct parameters params = get_params(getenv("QUERY_STRING"), &list);
 	if (params.mode == THREAD_MODE) /* check for 404 */
 	{
@@ -528,23 +546,18 @@ int main(void)
 			goto abort; /* abort and redirect user to parent thread */
 		}
 	}
-	if (params.mode == INDEX_MODE || params.mode == THREAD_MODE)
-	{
-		display_headers(&list, params.board_id);
-		display_boardlist(&list);
-		display_postform(params.mode, params.board_id, params.thread_id);
-	}
 	switch (params.mode)
 	{
-		case HOMEPAGE: homepage_mode(); break;
+		case HOMEPAGE: homepage_mode(&list); break;
 		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); break;
-		case INDEX_MODE: index_mode(db, params.board_id, params.page_no); break;
-		case THREAD_MODE: thread_mode(db, params.board_id, params.thread_id); break;
+		case INDEX_MODE: index_mode(db, &list, &params); break;
+		case THREAD_MODE: thread_mode(db, &list, &params); break;
 	}
 
+	/* debug */
+	fprintf(stdout, "<br/><br/>");
 	char *modes[] = { "homepage", "404 NOT FOUND", "index mode", "thread mode" };
-	fprintf(stdout, "mode %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
-
+	fprintf(stdout, "[debug] mode %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
 
 	/* footer
 	 * version info footer with page generation time
