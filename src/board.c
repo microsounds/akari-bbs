@@ -534,7 +534,6 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 			params.mode = NOT_FOUND; /* general 404 error */
 		else
 		{
-			params.mode = INDEX_MODE;
 			params.thread_id = atoi_s(thread);
 			if (params.thread_id > 0)
 			{
@@ -548,6 +547,7 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 			}
 			else
 			{
+				params.mode = INDEX_MODE;
 				params.page_no = atoi_s(page);
 				if (params.page_no > MAX_ACTIVE_THREADS / THREADS_PER_PAGE)
 					params.page_no = 0;
@@ -592,7 +592,7 @@ int main(void)
 		case HOMEPAGE: homepage_mode(&list); break;
 		case INDEX_MODE: index_mode(db, &list, &params); break;
 		case THREAD_MODE: thread_mode(db, &list, &params); break;
-		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
+		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); break; /* goto abort; */
 		case REDIRECT:
 			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", params.parent_id);
 			thread_redirect(params.board_id, params.parent_id, params.thread_id);
@@ -602,7 +602,8 @@ int main(void)
 	/* debug */
 	fprintf(stdout, "<br/><br/>");
 	char *modes[] = { "Homepage", "Index Mode", "Thread Mode", "404 Not Found", "Redirect" };
-	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
+	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>get string: \"%s\"",
+		modes[params.mode], params.board_id, params.thread_id, params.page_no, getenv("QUERY_STRING"));
 
 	/* footer
 	 * version info footer with page generation time

@@ -57,15 +57,10 @@ Backwards-compatibility for databases created by older versions of this software
 
 ## Deployment
 1. Install `lighttpd`, `sqlite3`, and `libsqlite3-dev`.
-2. In `/etc/lighttpd/lighttpd.conf`, add the following lines:
-
-   ```ini
-   server.modules += "mod_cgi"
-   cgi.assign = ( ".cgi"  => "" )
-   index-file.names = "board.cgi"
-   server.error-handler-404 = "/board.cgi?404"
-   ```
-3. Copy repo to your selected `server.document-root` location.
+2. Configure lighttpd by editing `/etc/lighttpd/lighttpd.conf` to include the contents of `server.conf`.
+  * On a default installation, you can just `cat server.conf >> /etc/lighttpd/lighttpd.conf` as root.
+3. Copy repo to your designated `server.document-root` location.
+  * Default location is `/var/www`.
 4. Build project with `make release`.
 5. Initialize database and give `www-data` write permission by running `./init.sh` as root.
 6. Enable and start Lighttpd using `service` or `systemctl`, depending on your distro.
