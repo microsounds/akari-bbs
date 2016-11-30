@@ -16,8 +16,12 @@
  * messageboard user interface
  */
 
-
 /*
+	todo:
+		URL rewriting
+		index mode
+		thread mode
+		peek mode
 	>>12345
 	if requested ID is not found in the thread, search through /api/12345 and display that
  */
@@ -25,12 +29,14 @@
 struct parameters {
 	enum {
 		HOMEPAGE,
-		NOT_FOUND,
 		INDEX_MODE,
-		THREAD_MODE
+		THREAD_MODE,
+		NOT_FOUND,
+		REDIRECT
 	} mode;
 	char *board_id;
 	long thread_id;
+	long parent_id; /* redirection */
 	long page_no;
 };
 
@@ -51,7 +57,7 @@ const char *const global_template[] = {
 		"<br/>"
 		"<div class=\"footer\" style=\"text-align:center;\">"
 			"Powered by %s rev.%d/db-%d %s<br/>"
-			"All trademarks and copyrights on this page are owned by their respective parties."
+			"All trademarks and copyrights on this page are owned by their respective parties. "
 			"Comments are owned by the Poster."
 		"</div>"
 	"</body>"
@@ -443,7 +449,7 @@ void homepage_mode(const struct board *list)
 		"</div>"
 		"<br/>";
 
-	static const char *directory[] = {
+	static const char *const directory[] = {
 		"<div class=\"directory center\">"
 			"<div class=\"dirheading\">Textboards</div>"
 			"<div class=\"line\"></div>",
@@ -504,7 +510,7 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	return;
 }
 
-struct parameters get_params(const char *query, struct board *list)
+struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 {
 	/* obtain settings from GET string */
 	unsigned i;
@@ -525,13 +531,21 @@ struct parameters get_params(const char *query, struct board *list)
 					params.board_id = strdup(board);
 		}
 		if (!params.board_id)
-			params.mode = NOT_FOUND;
+			params.mode = NOT_FOUND; /* general 404 error */
 		else
 		{
 			params.mode = INDEX_MODE;
 			params.thread_id = atoi_s(thread);
 			if (params.thread_id > 0)
-				params.mode = THREAD_MODE;
+			{
+				params.parent_id = db_find_parent(db, params.board_id, params.thread_id);
+				if (!params.parent_id)
+					params.mode = NOT_FOUND; /* doesn't exist */
+				else if (params.parent_id != params.thread_id)
+					params.mode = REDIRECT;
+				else
+					params.mode = THREAD_MODE;
+			}
 			else
 			{
 				params.page_no = atoi_s(page);
@@ -550,7 +564,7 @@ int main(void)
 	srand(time(NULL));
 	int err;
 	sqlite3 *db;
-	fprintf(stdout, "Content-type: text/html\n\n");
+	fprintf(stdout, "Content-type: text/html\n");
 	if ((err = sqlite3_open_v2(DATABASE_LOC, &db, 1, NULL))) /* read-only mode */
 	{
 		fprintf(stdout, "<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
@@ -563,32 +577,32 @@ int main(void)
 		fprintf(stdout, "<h2>No available boards. Please add one.</h2>");
 		return 1;
 	}
+	struct parameters params = get_params(db, getenv("QUERY_STRING"), &list);
+
+	/* HTTP response */
+	static const char *const response[] = {
+		[REDIRECT] = "301 Moved Permanently",
+		[NOT_FOUND] = "404 Not Found"
+	};
+	fprintf(stdout, "Status: %s\n\n",
+		    (!response[params.mode]) ? "200 OK" : response[params.mode]);
 	fprintf(stdout, global_template[0], IDENT_FULL); /* head */
-	struct parameters params = get_params(getenv("QUERY_STRING"), &list);
-	if (params.mode == THREAD_MODE) /* check for 404 */
-	{
-		long parent_id = db_find_parent(db, params.board_id, params.thread_id);
-		if (!parent_id)
-			params.mode = NOT_FOUND;
-		else if (params.thread_id != parent_id)
-		{
-			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", parent_id);
-			thread_redirect(params.board_id, parent_id, params.thread_id);
-			goto abort; /* abort and redirect user to parent thread */
-		}
-	}
 	switch (params.mode)
 	{
 		case HOMEPAGE: homepage_mode(&list); break;
-		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); break;
 		case INDEX_MODE: index_mode(db, &list, &params); break;
 		case THREAD_MODE: thread_mode(db, &list, &params); break;
+		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
+		case REDIRECT:
+			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", params.parent_id);
+			thread_redirect(params.board_id, params.parent_id, params.thread_id);
+			goto abort;
 	}
 
 	/* debug */
 	fprintf(stdout, "<br/><br/>");
-	char *modes[] = { "homepage", "404 NOT FOUND", "index mode", "thread mode" };
-	fprintf(stdout, "[debug] mode %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
+	char *modes[] = { "Homepage", "Index Mode", "Thread Mode", "404 Not Found", "Redirect" };
+	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld", modes[params.mode], params.board_id, params.thread_id, params.page_no);
 
 	/* footer
 	 * version info footer with page generation time
