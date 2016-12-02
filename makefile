@@ -7,12 +7,13 @@ INC=include
 OBJ=obj
 
 # make will build an .o in obj/ from every .c in src/
-# executables and their main .c file must share the same name
-OUTPUT=board.cgi submit.cgi
+# executables will share the same name as their main .c file
+MAINS=$(shell grep "int main" $(SRC)/* | cut -d ':' -f1)
 
+OUTPUT=$(patsubst $(SRC)/%.c,%.cgi, $(MAINS))
 INPUT=$(wildcard $(SRC)/*.c)
 OBJECTS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(INPUT))
-MAINS=$(patsubst %.cgi,$(OBJ)/%.o, $(OUTPUT))
+MAIN_OBJS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(MAINS))
 
 .PHONY: all release clean help
 
@@ -20,7 +21,7 @@ MAINS=$(patsubst %.cgi,$(OBJ)/%.o, $(OUTPUT))
 all: $(OUTPUT)
 
 $(OUTPUT): $(OBJECTS)
-	$(CC) -o $@ $(patsubst %.cgi,$(OBJ)/%.o, $@) $(filter-out $(MAINS), $^) $(LDFLAGS)
+	$(CC) -o $@ $(patsubst %.cgi,$(OBJ)/%.o, $@) $(filter-out $(MAIN_OBJS), $^) $(LDFLAGS)
 
 $(OBJ)/%.o: $(SRC)/%.c $(wildcard $(INC)/*.h)
 	@mkdir -p $(OBJ)
