@@ -260,6 +260,8 @@ textarea, input { color: #646464; font-family: sans-serif; }
 	box-shadow: 3px 3px 5px 0px #DBAFFF;
 }
 
+.parent { margin: 10px 0px 10px 0px; background: none; border: none; box-shadow: none; }
+
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }
 .pComment { margin: 16px 4px 5px 16px; white-space: pre-line; }

@@ -28,7 +28,6 @@ CREATE TABLE banned_users (
  == NOT YET IMPLEMENTED ==
 
  */
-
 CREATE TABLE boards (
 	id        TEXT    PRIMARY KEY,
 	name      TEXT    NOT NULL,

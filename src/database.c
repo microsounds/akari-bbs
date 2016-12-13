@@ -46,7 +46,7 @@ const char *const sqlite3_err[UCHAR_MAX] = {
 };
 #undef enum_string
 
-static char *sql_generate(const char *fmt, ...)
+char *sql_generate(const char *fmt, ...)
 {
 	/* auto-generate SQL statement using sprintf args
 	 * allocates space for integer and string arguments only

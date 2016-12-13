@@ -8,10 +8,10 @@ OBJ=obj
 
 # make will build an .o in obj/ from every .c in src/
 # executables will share the same name as their main .c file
-MAINS=$(shell grep "int main" $(SRC)/* | cut -d ':' -f1)
+INPUT=$(wildcard $(SRC)/*.c)
+MAINS=$(shell grep -l "int main" $(SRC)/*.c)
 
 OUTPUT=$(patsubst $(SRC)/%.c,%.cgi, $(MAINS))
-INPUT=$(wildcard $(SRC)/*.c)
 OBJECTS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(INPUT))
 MAIN_OBJS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(MAINS))
 

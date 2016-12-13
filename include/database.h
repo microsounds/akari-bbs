@@ -52,7 +52,8 @@ struct resource {
 /* SQLite3 error lookup */
 extern const char *const sqlite3_err[];
 
-/* redirects */
+/* misc */
+char *sql_generate(const char *fmt, ...);
 void thread_redirect(const char *board_id, long parent_id, long post_id);
 
 /* index retrieval */

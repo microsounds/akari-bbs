@@ -18,10 +18,9 @@
 
 /*
 	todo:
-		URL rewriting
+		peek mode
 		index mode
 		thread mode
-		peek mode
 	>>12345
 	if requested ID is not found in the thread, search through /api/12345 and display that
  */
@@ -31,6 +30,7 @@ struct parameters {
 		HOMEPAGE,
 		INDEX_MODE,
 		THREAD_MODE,
+		PEEK_MODE,
 		NOT_FOUND,
 		REDIRECT
 	} mode;
@@ -252,7 +252,8 @@ void res_display(struct resource *res)
 		const long id = res->arr[i].id; /* post id */
 		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
 		const char *comment = format_comment(&res->arr[i].comment);
-		fprintf(stdout, "<div class=\"pContainer\" id=\"p%ld\">", id);
+		const char *op = (id == res->arr[i].parent_id) ? " parent" : "";
+		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
 			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
@@ -501,12 +502,28 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	return;
 }
 
-/*void thread_mode(sqlite3 *db, const char *board_id, const long thread_id) */
 void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
+	/* display requested thread */
 	display_headers(list, params->board_id);
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, params->thread_id);
+	const char *sql =
+		"SELECT * FROM posts WHERE "
+			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;";
+	struct resource res; /* fetch thread */
+	char *cmd = sql_generate(sql, params->board_id, params->parent_id);
+	db_resource_fetch(db, &res, cmd);
+	res_display(&res);
+	db_resource_free(&res);
+	free(cmd);
+	return;
+}
+
+void peek_mode(sqlite3 *db, struct parameters *params)
+{
+	/* return a single post for previewing */
+	/* can be pure html or some kind of json abomination */
 	return;
 }
 
@@ -521,9 +538,10 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 		query_t query;
 		query_parse(&query, query_str);
 		free((!query_str) ? NULL : query_str);
-		char *board = query_search(&query, "board");
-		char *thread = query_search(&query, "thread");
-		char *page = query_search(&query, "page");
+		const char *board = query_search(&query, "board"),
+		           *thread = query_search(&query, "thread"),
+		           *page = query_search(&query, "page"),
+		           *peek = query_search(&query, "peek");
 		if (board)
 		{
 			for (i = 0; i < list->count; i++)
@@ -540,6 +558,8 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 				params.parent_id = db_find_parent(db, params.board_id, params.thread_id);
 				if (!params.parent_id)
 					params.mode = NOT_FOUND; /* doesn't exist */
+				else if (atoi_s(peek))
+					params.mode = PEEK_MODE;
 				else if (params.parent_id != params.thread_id)
 					params.mode = REDIRECT;
 				else
@@ -592,7 +612,8 @@ int main(void)
 		case HOMEPAGE: homepage_mode(&list); break;
 		case INDEX_MODE: index_mode(db, &list, &params); break;
 		case THREAD_MODE: thread_mode(db, &list, &params); break;
-		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); break; /* goto abort; */
+		case PEEK_MODE: peek_mode(db, &params); break;
+		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
 		case REDIRECT:
 			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", params.parent_id);
 			thread_redirect(params.board_id, params.parent_id, params.thread_id);
@@ -601,7 +622,7 @@ int main(void)
 
 	/* debug */
 	fprintf(stdout, "<br/><br/>");
-	char *modes[] = { "Homepage", "Index Mode", "Thread Mode", "404 Not Found", "Redirect" };
+	char *modes[] = { "Homepage", "Index Mode", "Thread Mode", "Peek Mode", "404 Not Found", "Redirect" };
 	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>get string: \"%s\"",
 		modes[params.mode], params.board_id, params.thread_id, params.page_no, getenv("QUERY_STRING"));
 
