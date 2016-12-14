@@ -56,7 +56,7 @@ extern const char *const sqlite3_err[];
 char *sql_generate(const char *fmt, ...);
 void thread_redirect(const char *board_id, long parent_id, long post_id);
 
-/* index retrieval */
+/* value retrieval */
 long db_retrieval(sqlite3 *db, const char *sql);
 long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n);
 
@@ -65,6 +65,7 @@ unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id);
 int db_validate_board(sqlite3 *db, const char *board_id);
 int db_validate_parent(sqlite3 *db, const char *board_id, const long id);
 long db_find_parent(sqlite3 *db, const char *board_id, const long id);
+long db_archive_status(sqlite3 *db, const char *board_id, const long id);
 long db_total_posts(sqlite3 *db, const char *board_id, const long id);
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr);
 

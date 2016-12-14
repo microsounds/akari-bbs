@@ -12,17 +12,8 @@
 
 /*
  * database.c
- * database redirects, validation, insertion, and retrieval
+ * database retrieval, validation, insertion, and resource fetching
  */
-
-/*
-	frontpage order
-	SELECT post_id from active_threads WHERE board_id = \"%s\" ORDER BY last_bump DESC;
-
-	thread mode
-	SELECT * FROM posts WHERE board_id = \"%s\" AND parent_id = %ld ORDER BY time ASC:
- */
-
 
 /* SQLite3 error lookup */
 #define enum_string(e) [e] = #e
@@ -233,6 +224,18 @@ long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 	return parent_id;
 }
 
+long db_archive_status(sqlite3 *db, const char *board_id, const long id)
+{
+	/* return non-zero if requested thread_id is archived */
+	static const char *sql =
+		"SELECT COUNT(*) FROM archived_threads "
+			"WHERE board_id = \"%s\" AND post_id = %ld;";
+	char *cmd = sql_generate(sql, board_id, id);
+	long status = db_retrieval(db, cmd);
+	free(cmd);
+	return status;
+}
+
 long db_total_posts(sqlite3 *db, const char *board_id, const long id)
 {
 	/* returns total post count of board_id
@@ -396,7 +399,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		"SELECT post_id FROM active_threads WHERE board_id = \"%s\" "
 			"ORDER BY last_bump DESC LIMIT %ld OFFSET %ld;",
 		/* archive threads */
-		"INSERT INTO archived_threads VALUES(\"%s\", %ld, %ld);"
+		"INSERT INTO archived_threads VALUES(\"%s\", %ld, %ld); "
 		"DELETE FROM active_threads WHERE board_id = \"%s\" AND post_id = %ld;",
 		/* get number of expired archive threads */
 		"SELECT COUNT(*) FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",

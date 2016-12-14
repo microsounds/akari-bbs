@@ -18,8 +18,10 @@
 
 /*
 	todo:
+		index mode freezes on non-zero page numbers
 		peek mode
-		index mode
+		archive mode
+		"This thread is archived."
 		rewrite enquote_comment to get correct thread and link
 
 	>>12345
@@ -31,6 +33,7 @@ struct parameters {
 		HOMEPAGE,
 		INDEX_MODE,
 		THREAD_MODE,
+		ARCHIVE_MODE,
 		PEEK_MODE,
 		NOT_FOUND,
 		REDIRECT
@@ -242,45 +245,6 @@ char *format_comment(char **loc)
 	return str;
 }
 
-void res_display(struct resource *res, int mode)
-{
-	/* print all post data stored in post container */
-	unsigned i;
-	for (i = 0; i < res->count; i++)
-	{
-		/* use default name if not provided */
-		const char *name = (!res->arr[i].name) ? DEFAULT_NAME : res->arr[i].name;
-		const long id = res->arr[i].id; /* post id */
-		const long parent_id = res->arr[i].parent_id; /* parent id */
-		unsigned is_parent = (id == parent_id); /* OP post */
-		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
-		const char *comment = format_comment(&res->arr[i].comment);
-		const char *op = (is_parent) ? " parent" : ""; /* opening post */
-		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
-		if (res->arr[i].options & POST_SAGE)
-			fprintf(stdout, "<span class=\"pSubject\">[sage]</span> ");
-		if (res->arr[i].subject)
-			fprintf(stdout, "<span class=\"pSubject\">%s</span> ", res->arr[i].subject);
-		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
-		if (res->arr[i].trip) /* optional field */
-			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
-		char time_str[100]; /* human readable date */
-		struct tm *ts = localtime((time_t *) &res->arr[i].time);
-		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
-		fprintf(stdout, "<span class=\"pDate\">%s</span> ", time_str);
-		fprintf(stdout, "<span class=\"pId\">"); /* post link scripting */
-		fprintf(stdout, "<a href=\"#p%ld\" onClick=\"highlight('p%ld')\" title=\"Link to post\">No.</a>", id, id);
-		fprintf(stdout, "<a href=\"javascript:quote('%ld');\" title=\"Reply to post\">%ld</a>", id, id);
-		if (mode == INDEX_MODE && is_parent) /* reply link */
-			fprintf(stdout, " <span class=\"navi controls\">"
-			                "[<a href=\"%s?board=%s&thread=%ld\">Reply</a>]</span>",
-		                     BOARD_SCRIPT, res->arr[i].board_id, res->arr[i].parent_id);
-		fprintf(stdout, "</span>");
-		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
-		fprintf(stdout, "</div><br/>");
-	}
-}
-
 void display_headers(const struct board *list, const char *board_id)
 {
 	/* top-most headers and rotating banners */
@@ -333,52 +297,6 @@ void display_boardlist(const struct board *list, const char *title)
 	}
 }
 
-void display_navigation(const struct parameters *params, int bottom)
-{
-	/* display navigation bar */
-	static const char *const navi[] = {
-		"<div class=\"line\"></div>",
-		"<span class=\"navi controls\">",
-			"[<a href=\"#bottom\" id=\"top\">Bottom</a>] ",
-			"[<a href=\"#top\" id=\"bottom\">Top</a>] ",
-		/* thread mode */
-			"[<a href=\"%s?board=%s\">Return</a>] ",
-			"Thread No.%ld",
-		/* index mode */
-			"[<a href=\"%s?board=%s&page=%u\">&lt;&lt;</a>] ",
-			"[<a href=\"%s?board=%s&page=%u\">&gt;&gt;</a>] ",
-			"[<b>%u</b>] ",
-			"[<a href=\"%s?board=%s&page=%u\">%u</a>] ",
-			"Index Page %u of %u",
-		"</span>"
-	};
-	unsigned i;
-	for (i = 0; i < 2; i++)
-		fprintf(stdout, navi[i]);
-	if (params->mode == THREAD_MODE)
-		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
-	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
-	unsigned pages = MAX_ACTIVE_THREADS / THREADS_PER_PAGE;
-	if (params->mode == INDEX_MODE) /* info */
-	{
-		if (params->page_no > 0)
-			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, params->page_no - 1);
-		for (i = 0; i < pages; i++)
-		{
-			if (i == params->page_no)
-				fprintf(stdout, navi[8], i);
-			else
-				fprintf(stdout, navi[9], BOARD_SCRIPT, params->board_id, i, i);
-		}
-		if (params->page_no < pages - 1)
-			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id, params->page_no + 1);
-		fprintf(stdout, navi[10], params->page_no, pages - 1);
-	}
-	else if (params->mode == THREAD_MODE)
-		fprintf(stdout, navi[5], params->thread_id);
-	fprintf(stdout, "%s%s", navi[11], navi[0]);
-}
-
 void display_postform(int mode, const char *board_id, const long thread_id)
 {
 	/* generate post submission form */
@@ -428,7 +346,8 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 			"<a class=\"tooltip\" href=\"#\" msg=\"Supported markup: [spoiler], [code]. Implicit end tags are added if missing.\">[?]</a>"
 		"</span>"
 		"</div>"
-		"<div class=\"reset\"></div><br/>"
+		"<div class=\"reset\"></div>"
+		"</div><br/>"
 	};
 
 	fprintf(stdout, postform[0], SUBMIT_SCRIPT);
@@ -446,6 +365,91 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 	fprintf(stdout, postform[4], NAME_MAX_LENGTH, DEFAULT_NAME,
 		OPTIONS_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH, COMMENT_MAX_LENGTH);
 	fprintf(stdout, postform[5]);
+}
+
+void display_navigation(const struct parameters *params, int bottom)
+{
+	/* display navigation bar */
+	static const char *const navi[] = {
+		"<div class=\"line\"></div>",
+		"<span class=\"navi controls\">",
+			"[<a href=\"#bottom\" id=\"top\">Bottom</a>] ",
+			"[<a href=\"#top\" id=\"bottom\">Top</a>] ",
+		/* thread mode */
+			"[<a href=\"%s?board=%s\">Return</a>] ",
+			"Thread No.%ld",
+		/* index mode */
+			"[<a href=\"%s?board=%s&page=%u\">&lt;&lt;</a>] ",
+			"[<a href=\"%s?board=%s&page=%u\">&gt;&gt;</a>] ",
+			"[<b>%u</b>] ",
+			"[<a href=\"%s?board=%s&page=%u\">%u</a>] ",
+			"Page %u of %u",
+		"</span>"
+	};
+	unsigned i;
+	for (i = 0; i < 2; i++)
+		fprintf(stdout, navi[i]);
+	if (params->mode == THREAD_MODE)
+		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
+	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
+	unsigned pages = MAX_ACTIVE_THREADS / THREADS_PER_PAGE;
+	if (params->mode == INDEX_MODE) /* info */
+	{
+		if (params->page_no > 0)
+			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, params->page_no - 1);
+		for (i = 0; i < pages; i++)
+		{
+			if (i == params->page_no)
+				fprintf(stdout, navi[8], i);
+			else
+				fprintf(stdout, navi[9], BOARD_SCRIPT, params->board_id, i, i);
+		}
+		if (params->page_no < pages - 1)
+			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id, params->page_no + 1);
+		fprintf(stdout, navi[10], params->page_no, pages - 1);
+	}
+	else if (params->mode == THREAD_MODE)
+		fprintf(stdout, navi[5], params->thread_id);
+	fprintf(stdout, "%s%s", navi[11], navi[0]);
+}
+
+void display_resource(struct resource *res, int mode)
+{
+	/* print all post data stored in post container */
+	unsigned i;
+	for (i = 0; i < res->count; i++)
+	{
+		/* use default name if not provided */
+		const char *name = (!res->arr[i].name) ? DEFAULT_NAME : res->arr[i].name;
+		const long id = res->arr[i].id; /* post id */
+		const long parent_id = res->arr[i].parent_id; /* parent id */
+		unsigned is_parent = (id == parent_id); /* OP post */
+		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
+		const char *comment = format_comment(&res->arr[i].comment);
+		const char *op = (is_parent) ? " parent" : ""; /* opening post */
+		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
+		if (res->arr[i].options & POST_SAGE)
+			fprintf(stdout, "<span class=\"pSubject\">[sage]</span> ");
+		if (res->arr[i].subject)
+			fprintf(stdout, "<span class=\"pSubject\">%s</span> ", res->arr[i].subject);
+		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
+		if (res->arr[i].trip) /* optional field */
+			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
+		char time_str[100]; /* human readable date */
+		struct tm *ts = localtime((time_t *) &res->arr[i].time);
+		strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
+		fprintf(stdout, "<span class=\"pDate\">%s</span> ", time_str);
+		fprintf(stdout, "<span class=\"pId\">"); /* post link scripting */
+		fprintf(stdout, "<a href=\"#p%ld\" onClick=\"highlight('p%ld')\" title=\"Link to post\">No.</a>", id, id);
+		fprintf(stdout, "<a href=\"javascript:quote('%ld');\" title=\"Reply to post\">%ld</a>", id, id);
+		if (mode == INDEX_MODE && is_parent) /* reply link */
+			fprintf(stdout, " <span class=\"navi controls\">"
+			                "[<a href=\"%s?board=%s&thread=%ld\">Reply</a>]</span>",
+		                     BOARD_SCRIPT, res->arr[i].board_id, res->arr[i].parent_id);
+		fprintf(stdout, "</span>");
+		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
+		fprintf(stdout, "</div><br/>");
+	}
 }
 
 void homepage_mode(const struct board *list)
@@ -525,7 +529,7 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 		"<div class=\"navi controls\">",
 			"No repl%s. ",
 			"%ld repl%s. ",
-			"%ld repl%s, %ld omitted. ",
+			"%ld repl%s, %ld post%s omitted. ",
 			"[<a href=\"%s?board=%s&thread=%ld\">Click here</a>] to view."
 		"</div>"
 	};
@@ -557,16 +561,17 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 		long omitted = 0; /* display preview only */
 		if (replies > MAX_REPLY_PREVIEW)
 			omitted = replies - MAX_REPLY_PREVIEW;
-		struct resource parent = { 1 , &res.arr[0] }; /* OP */
-		res_display(&parent, INDEX_MODE);
+		struct resource parent = { 1 , res.arr }; /* OP */
+		display_resource(&parent, params->mode);
 		fprintf(stdout, ins[1]); /* instructions */
-		const char *plural = (replies == 1) ? "y" : "ies";
+		const char *p1 = (replies == 1) ? "y" : "ies";
+		const char *p2 = (replies == 1) ? "" : "s";
 		if (!replies)
-			fprintf(stdout, ins[2], plural);
+			fprintf(stdout, ins[2], p1);
 		else if (!omitted)
-			fprintf(stdout, ins[3], replies, plural);
+			fprintf(stdout, ins[3], replies, p1);
 		else
-			fprintf(stdout, ins[4], replies, plural, omitted);
+			fprintf(stdout, ins[4], replies, p1, omitted, p2);
 		fprintf(stdout, ins[5], BOARD_SCRIPT, params->board_id, index[i]);
 		if (replies)
 		{
@@ -575,7 +580,7 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 			prev.arr = (struct post *) malloc(sizeof(struct post) * prev.count);
 			for (j = 0; j < prev.count; j++) /* truncate and skip OP */
 				prev.arr[j] = res.arr[omitted + j + 1];
-			res_display(&prev, INDEX_MODE);
+			display_resource(&prev, params->mode);
 			free(prev.arr);
 		}
 		db_resource_free(&res);
@@ -599,7 +604,7 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	struct resource res; /* fetch thread */
 	char *cmd = sql_generate(sql, params->board_id, params->thread_id);
 	db_resource_fetch(db, &res, cmd);
-	res_display(&res, THREAD_MODE);
+	display_resource(&res, params->mode);
 	display_navigation(params, 1);
 	db_resource_free(&res);
 	free(cmd);
@@ -631,7 +636,7 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 		{
 			for (i = 0; i < list->count; i++)
 				if (!strcmp(list->id[i], board)) /* validate board */
-					params.board_id = strdup(board);
+					params.board_id = list->id[i];
 		}
 		if (!params.board_id)
 			params.mode = NOT_FOUND; /* general 404 error */
@@ -647,6 +652,8 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 					params.mode = PEEK_MODE;
 				else if (params.parent_id != params.thread_id)
 					params.mode = REDIRECT;
+				else if (db_archive_status(db, params.board_id, params.parent_id))
+					params.mode = ARCHIVE_MODE;
 				else
 					params.mode = THREAD_MODE;
 			}
@@ -696,7 +703,8 @@ int main(void)
 	{
 		case HOMEPAGE: homepage_mode(&list); break;
 		case INDEX_MODE: index_mode(db, &list, &params); break;
-		case THREAD_MODE: thread_mode(db, &list, &params); break;
+		case THREAD_MODE:
+		case ARCHIVE_MODE: thread_mode(db, &list, &params); break;
 		case PEEK_MODE: peek_mode(db, &params); break;
 		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
 		case REDIRECT:
@@ -707,7 +715,10 @@ int main(void)
 
 	/* debug */
 	fprintf(stdout, "<br/><br/>");
-	char *modes[] = { "Homepage", "Index Mode", "Thread Mode", "Peek Mode", "404 Not Found", "Redirect" };
+	char *modes[] = {
+		"Homepage", "Index Mode", "Thread Mode", "Archive Mode",
+		"Peek Mode", "404 Not Found", "Redirect"
+	};
 	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>get string: \"%s\"",
 		modes[params.mode], params.board_id, params.thread_id, params.page_no, getenv("QUERY_STRING"));
 
