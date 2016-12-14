@@ -20,7 +20,8 @@
 	todo:
 		peek mode
 		index mode
-		thread mode
+		rewrite enquote_comment to get correct thread and link
+
 	>>12345
 	if requested ID is not found in the thread, search through /api/12345 and display that
  */
@@ -241,19 +242,25 @@ char *format_comment(char **loc)
 	return str;
 }
 
-void res_display(struct resource *res)
+void res_display(struct resource *res, int mode)
 {
-	/* print all post data stored in memory */
+	/* print all post data stored in post container */
 	unsigned i;
 	for (i = 0; i < res->count; i++)
 	{
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? DEFAULT_NAME : res->arr[i].name;
 		const long id = res->arr[i].id; /* post id */
+		const long parent_id = res->arr[i].parent_id; /* parent id */
+		unsigned is_parent = (id == parent_id); /* OP post */
 		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
 		const char *comment = format_comment(&res->arr[i].comment);
-		const char *op = (id == res->arr[i].parent_id) ? " parent" : "";
+		const char *op = (is_parent) ? " parent" : ""; /* opening post */
 		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
+		if (res->arr[i].options & POST_SAGE)
+			fprintf(stdout, "<span class=\"pSubject\">[sage]</span> ");
+		if (res->arr[i].subject)
+			fprintf(stdout, "<span class=\"pSubject\">%s</span> ", res->arr[i].subject);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
 		if (res->arr[i].trip) /* optional field */
 			fprintf(stdout, "<span class=\"pTrip\">%s</span> ", res->arr[i].trip);
@@ -264,54 +271,14 @@ void res_display(struct resource *res)
 		fprintf(stdout, "<span class=\"pId\">"); /* post link scripting */
 		fprintf(stdout, "<a href=\"#p%ld\" onClick=\"highlight('p%ld')\" title=\"Link to post\">No.</a>", id, id);
 		fprintf(stdout, "<a href=\"javascript:quote('%ld');\" title=\"Reply to post\">%ld</a>", id, id);
+		if (mode == INDEX_MODE && is_parent) /* reply link */
+			fprintf(stdout, " <span class=\"navi controls\">"
+			                "[<a href=\"%s?board=%s&thread=%ld\">Reply</a>]</span>",
+		                     BOARD_SCRIPT, res->arr[i].board_id, res->arr[i].parent_id);
 		fprintf(stdout, "</span>");
 		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
 		fprintf(stdout, "</div><br/>");
 	}
-}
-
-void display_controls(int limit, int offset, int results)
-{
-	/* display controls for the user */
-	fprintf(stdout, "<div class=\"nav\">");
-	static const char *link =" <a href=\"/board.cgi?offset=%d\"><b>%s</b></a> ";
-	if (offset - limit >= 0)
-		fprintf(stdout, link, offset - limit, "&lt;&lt; Next");
-	if (offset > 0)
-		fprintf(stdout, link, 0, "[Back to Top]");
-	if (results == limit)
-		fprintf(stdout, link, offset + limit, "Prev &gt;&gt;");
-	fprintf(stdout, "</div>");
-}
-
-void display_posts(sqlite3 *db, int limit, int offset)
-{
-	/* sanity check */
-	limit = (limit < 0) ? -limit : limit;
-	offset = (offset < 0) ? -offset : offset;
-	if (offset % limit) /* display in multiples of the limit only */
-	{
-		fprintf(stdout, "<h2>Please request offsets in multiples of %d only.</h2>", limit);
-		return;
-	}
-	struct resource res;
-	char select[200];
-	static const char *sql = "SELECT * FROM comments ORDER BY id DESC LIMIT %d OFFSET %d;";
-	sprintf(select, sql, limit, offset);
-	db_resource_fetch_specific(db, &res, select, limit);
-	if (!res.count)
-		fprintf(stdout, "<h2>There aren't that many posts here.</h2>");
-	else
-	{
-		long total = 0;
-		long pages = (float) total / limit + 1;
-		long current = (float) offset / limit + 1;
-		fprintf(stdout, "<br/>Page %ld of %ld", current, pages);
-		display_controls(limit, offset, res.count);
-		res_display(&res);
-		display_controls(limit, offset, res.count);
-	}
-	db_resource_free(&res);
 }
 
 void display_headers(const struct board *list, const char *board_id)
@@ -364,6 +331,52 @@ void display_boardlist(const struct board *list, const char *title)
 		else
 			fprintf(stdout, navi[i], "");
 	}
+}
+
+void display_navigation(const struct parameters *params, int bottom)
+{
+	/* display navigation bar */
+	static const char *const navi[] = {
+		"<div class=\"line\"></div>",
+		"<span class=\"navi controls\">",
+			"[<a href=\"#bottom\" id=\"top\">Bottom</a>] ",
+			"[<a href=\"#top\" id=\"bottom\">Top</a>] ",
+		/* thread mode */
+			"[<a href=\"%s?board=%s\">Return</a>] ",
+			"Thread No.%ld",
+		/* index mode */
+			"[<a href=\"%s?board=%s&page=%u\">&lt;&lt;</a>] ",
+			"[<a href=\"%s?board=%s&page=%u\">&gt;&gt;</a>] ",
+			"[<b>%u</b>] ",
+			"[<a href=\"%s?board=%s&page=%u\">%u</a>] ",
+			"Index Page %u of %u",
+		"</span>"
+	};
+	unsigned i;
+	for (i = 0; i < 2; i++)
+		fprintf(stdout, navi[i]);
+	if (params->mode == THREAD_MODE)
+		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
+	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
+	unsigned pages = MAX_ACTIVE_THREADS / THREADS_PER_PAGE;
+	if (params->mode == INDEX_MODE) /* info */
+	{
+		if (params->page_no > 0)
+			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, params->page_no - 1);
+		for (i = 0; i < pages; i++)
+		{
+			if (i == params->page_no)
+				fprintf(stdout, navi[8], i);
+			else
+				fprintf(stdout, navi[9], BOARD_SCRIPT, params->board_id, i, i);
+		}
+		if (params->page_no < pages - 1)
+			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id, params->page_no + 1);
+		fprintf(stdout, navi[10], params->page_no, pages - 1);
+	}
+	else if (params->mode == THREAD_MODE)
+		fprintf(stdout, navi[5], params->thread_id);
+	fprintf(stdout, "%s%s", navi[11], navi[0]);
 }
 
 void display_postform(int mode, const char *board_id, const long thread_id)
@@ -493,13 +506,84 @@ void not_found(const char *refer)
 	fprintf(stdout, error, IDENT, REVISION, DB_VER, (!refer) ? "/" : refer);
 }
 
-/* void index_mode(sqlite3 *db, const char *board_id, const int page) */
 void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
+	/* compute index ranking and display threads from that page */
 	display_headers(list, params->board_id);
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, 0);
-	return;
+	display_navigation(params, 0);
+	const char *const sql[] = {
+		"SELECT COUNT(*) FROM active_threads WHERE board_id = \"%s\";",
+		"SELECT post_id FROM active_threads WHERE "
+			"board_id = \"%s\" ORDER BY last_bump DESC;",
+		"SELECT * FROM posts WHERE "
+			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;"
+	};
+	const char *const ins[] = {
+		"<div class=\"line\"></div>",
+		"<div class=\"navi controls\">",
+			"No repl%s. ",
+			"%ld repl%s. ",
+			"%ld repl%s, %ld omitted. ",
+			"[<a href=\"%s?board=%s&thread=%ld\">Click here</a>] to view."
+		"</div>"
+	};
+	char *cmd[static_size(sql)]; /* sql buffer */
+	unsigned i, j;
+	for (i = 0; i < static_size(sql) - 1; i++)
+		cmd[i] = sql_generate(sql[i], params->board_id);
+	long thread_count = db_retrieval(db, cmd[0]);
+	long *index = db_array_retrieval(db, cmd[1], thread_count);
+	long offset = THREADS_PER_PAGE * params->page_no;
+	long limit = offset + THREADS_PER_PAGE;
+	if (thread_count < THREADS_PER_PAGE)
+	{
+		/* insufficient threads to fill page */
+		offset = 0;
+		if (thread_count < limit)
+			limit = thread_count;
+		if (params->page_no > 0)
+			goto abort;
+	}
+	for (i = offset; i < limit; i++)
+	{
+		if (i != offset)
+			fprintf(stdout, ins[0]);
+		struct resource res; /* fetch thread */
+		cmd[2] = sql_generate(sql[2], params->board_id, index[i]);
+		long replies = db_resource_fetch(db, &res, cmd[2]) - 1;
+		free(cmd[2]);
+		long omitted = 0; /* display preview only */
+		if (replies > MAX_REPLY_PREVIEW)
+			omitted = replies - MAX_REPLY_PREVIEW;
+		struct resource parent = { 1 , &res.arr[0] }; /* OP */
+		res_display(&parent, INDEX_MODE);
+		fprintf(stdout, ins[1]); /* instructions */
+		const char *plural = (replies == 1) ? "y" : "ies";
+		if (!replies)
+			fprintf(stdout, ins[2], plural);
+		else if (!omitted)
+			fprintf(stdout, ins[3], replies, plural);
+		else
+			fprintf(stdout, ins[4], replies, plural, omitted);
+		fprintf(stdout, ins[5], BOARD_SCRIPT, params->board_id, index[i]);
+		if (replies)
+		{
+			struct resource prev; /* duplicated post container */
+			prev.count = replies - omitted;
+			prev.arr = (struct post *) malloc(sizeof(struct post) * prev.count);
+			for (j = 0; j < prev.count; j++) /* truncate and skip OP */
+				prev.arr[j] = res.arr[omitted + j + 1];
+			res_display(&prev, INDEX_MODE);
+			free(prev.arr);
+		}
+		db_resource_free(&res);
+	}
+	abort: display_navigation(params, 1);
+	free((!index) ?  NULL : index);
+	for (i = 0; i < static_size(sql); i++)
+		free((!cmd[i]) ? NULL : cmd[i]);
 }
 
 void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
@@ -508,16 +592,17 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	display_headers(list, params->board_id);
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, params->thread_id);
+	display_navigation(params, 0);
 	const char *sql =
 		"SELECT * FROM posts WHERE "
 			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;";
 	struct resource res; /* fetch thread */
-	char *cmd = sql_generate(sql, params->board_id, params->parent_id);
+	char *cmd = sql_generate(sql, params->board_id, params->thread_id);
 	db_resource_fetch(db, &res, cmd);
-	res_display(&res);
+	res_display(&res, THREAD_MODE);
+	display_navigation(params, 1);
 	db_resource_free(&res);
 	free(cmd);
-	return;
 }
 
 void peek_mode(sqlite3 *db, struct parameters *params)

@@ -82,6 +82,33 @@ int uintlen(unsigned long n)
 	return 10;
 }
 
+char *strxtr(char *src, size_t n)
+{
+	/* extract n characters from src
+	 * return array containing extracted string
+	 * extracted characters are deleted from src
+	 */
+	char *xtr = (char *) malloc(sizeof(char) * n + 1);
+	memcpy(xtr, src, n);
+	xtr[n] = '\0';
+	memmove(src, &src[n], strlen(&src[n]) + 1);
+	return xtr;
+}
+
+char *strins(char **loc, size_t pos, const char *src, size_t n)
+{
+	/* insert string src into location at &dest[pos]
+	 * loc must point to mem block returned by *alloc function
+	 * &dest[pos] will be realloc'd and shifted n bytes right
+	 */
+	char *dest = *loc; /* realloc */
+	dest = (char *) realloc(dest, strlen(dest) + n + 1);
+	memmove(&dest[pos + n], &dest[pos], strlen(&dest[pos]) + 1);
+	memcpy(&dest[pos], src, n);
+	*loc = dest;
+	return dest;
+}
+
 char *strdup(const char *str)
 {
 	/* duplicate string */

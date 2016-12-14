@@ -100,7 +100,7 @@ a > #bannertext
 .navi > a:link { color: inherit; text-decoration: inherit; }
 .navi > a:hover { color: red; }
 .boardlist { font-size: 12px; }
-.controls { font-size: 13px; }
+.controls { color: #312A2A; font-size: 13px; }
 .right { float: right; }
 .line
 {
@@ -260,8 +260,15 @@ textarea, input { color: #646464; font-family: sans-serif; }
 	box-shadow: 3px 3px 5px 0px #DBAFFF;
 }
 
-.parent { margin: 10px 0px 10px 0px; background: none; border: none; box-shadow: none; }
+.parent
+{
+	margin: 10px 0px 10px 0px;
+	background: none;
+	border: none;
+	box-shadow: none;
+}
 
+.pSubject { color: #0F0C5D; font-weight: bold; }
 .pName { color: green; font-weight: bold; }
 .pTrip { color: green; }
 .pComment { margin: 16px 4px 5px 16px; white-space: pre-line; }
@@ -274,5 +281,6 @@ a:visited { color: inherit; }
 
 .quote { color: #66821B; }
 .linkquote { color: #D00 !important; text-decoration: underline; }
+.invalid { text-decoration: line-through; }
 .highlight { border-left: 5px solid #9793D7; background-color: #D5B2FE !important; }
 .popup { position: absolute; border: 1px solid lightgray; }

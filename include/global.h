@@ -43,6 +43,7 @@
 /* thread constants */
 #define THREAD_BUMP_LIMIT 350
 #define MAX_ACTIVE_THREADS 150
+#define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15
 #define ARCHIVE_SEC ((60 * 60 * 24) * 30) /* 1 mo */
 
