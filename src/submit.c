@@ -31,7 +31,6 @@ static const char *const html[] = {
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
 		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
-		"<style>h2 { color: #424242; }  a { text-decoration: none; } a:hover { color: red; }</style>"
 	"</head>"
 	"<body>"
 		"<div class=\"pContainer\">"
@@ -43,7 +42,7 @@ static const char *const html[] = {
 	"</body>"
 	"</html>",
 	/* backlink */
-	"<div>[<a href=\"%s\">Go back</a>]</div>"
+	"<div class=\"navi controls\">[<a href=\"%s\">Go back</a>]</div>"
 };
 
 static void abort_now(const char *fmt, ...)

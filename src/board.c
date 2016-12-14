@@ -301,17 +301,19 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 {
 	/* generate post submission form */
 	static const char *const postform[] = {
-		"<div id=\"postbox\">"
+		"<div id=\"postbox\">",
+		/* postform preamble */
 		"<table class=\"form\" cellspacing=\"0\">"
-			"<form action=\"%s\" method=\"post\" id=\"postform\">",
-		/* mode-dependent options */
-			"<div class=\"formtitle indexmode\">[!!] Index Mode: Start a New Thread!</div>",
-			"<div class=\"formtitle threadmode\">[!!] Thread Mode: Reply to Thread No.%ld</div>",
-		/* hidden fields */
+			"<form action=\"%s\" method=\"post\" id=\"postform\">"
 			"<input type=\"hidden\" name=\"board\" value=\"%s\">"
 			"<input type=\"hidden\" name=\"mode\" value=\"%s\">"
 			"<input type=\"hidden\" name=\"parent\" value=\"%ld\">",
-		/* visible fields */
+		/* mode-dependent options */
+			"<div class=\"formtitle indexmode\">[!!] Index Mode: Start a New Thread!</div>",
+			"<div class=\"formtitle threadmode\">[!!] Thread Mode: Reply to Thread No.%ld</div>",
+			"<div class=\"formtitle archivemode\">[!!] Viewing Archived Thread No.%ld</div>"
+			"<h2>You cannot reply to this thread anymore.</h2>",
+		/* postform input fields */
 			"<tr>"
 				"<td><div class=\"desc\">Name</div></td>"
 				"<td><input class=\"field\" type=\"text\" name=\"name\" maxlength=\"%d\" placeholder=\"%s\"></td>"
@@ -335,7 +337,7 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 				"</td>"
 			"</tr>"
 			"</form>"
-		"</table>",
+		"</table>"
 		/* tooltips */
 		"<span class=\"help right\">"
 			"<noscript>Please enable <b>JavaScript</b> for the best user experience!</br></noscript>"
@@ -344,27 +346,28 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 			"<a class=\"tooltip\" href=\"#\" msg=\"Enter your name as &quot;name#password&quot; to generate a tripcode.\">[?]</a>, "
 			"<b>Markup</b> "
 			"<a class=\"tooltip\" href=\"#\" msg=\"Supported markup: [spoiler], [code]. Implicit end tags are added if missing.\">[?]</a>"
-		"</span>"
+		"</span>",
 		"</div>"
 		"<div class=\"reset\"></div>"
 		"</div><br/>"
 	};
 
-	fprintf(stdout, postform[0], SUBMIT_SCRIPT);
-	if (mode == THREAD_MODE)
+	fprintf(stdout, postform[0]);
+	switch (mode) /* preamble */
 	{
-		fprintf(stdout, postform[2], thread_id);
-		fprintf(stdout, postform[3], board_id, "reply", thread_id);
-	}
-	else /* INDEX_MODE */
-	{
-		fprintf(stdout, postform[1]);
-		fprintf(stdout, postform[3], board_id, "thread", 0);
+		case INDEX_MODE:
+			fprintf(stdout, postform[1], SUBMIT_SCRIPT, board_id, "thread", 0);
+			fprintf(stdout, postform[2]); break;
+		case THREAD_MODE:
+			fprintf(stdout, postform[1], SUBMIT_SCRIPT, board_id, "reply", thread_id);
+			fprintf(stdout, postform[3], thread_id); break;
+		case ARCHIVE_MODE:
+			fprintf(stdout, postform[4], thread_id); goto end;
 	}
 	/* client-side character limits */
-	fprintf(stdout, postform[4], NAME_MAX_LENGTH, DEFAULT_NAME,
+	fprintf(stdout, postform[5], NAME_MAX_LENGTH, DEFAULT_NAME,
 		OPTIONS_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH, COMMENT_MAX_LENGTH);
-	fprintf(stdout, postform[5]);
+	end: fprintf(stdout, postform[6]);
 }
 
 void display_navigation(const struct parameters *params, int bottom)
@@ -495,7 +498,6 @@ void homepage_mode(const struct board *list)
 void not_found(const char *refer)
 {
 	static const char *error =
-	"<style>h2 { color: #424242; } a { text-decoration: none; } a:hover { color: red; }</style>"
 	"<div class=\"pContainer\">"
 		"<span class=\"pName\">%s <i>rev.%d/db-%d</i></span>"
 		"<div class=\"pComment\">"
@@ -505,7 +507,7 @@ void not_found(const char *refer)
 			"It may have been pruned or deleted."
 		"</span>"
 		"<br/>"
-		"<div>[<a href=\"%s\">Go back</a>]</div>"
+		"<div class=\"navi controls\">[<a href=\"%s\">Go back</a>]</div>"
 	"</div></div>";
 	fprintf(stdout, error, IDENT, REVISION, DB_VER, (!refer) ? "/" : refer);
 }

@@ -147,7 +147,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	 */
 	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
 	const char *redir_link =
-		"<div>"
+		"<div class=\"navi controls\">"
 			"If you are not redirected shortly, please [<a href=\"%s\">click here</a>]."
 		"</div>";
 	const char *url = "%s?board=%s&thread=%ld";

@@ -13,6 +13,8 @@ body
 	background-color: #AFD3FF;
 }
 
+h2 { color: #424242; } /* general error messages */
+
 /* rotating banner */
 
 #banner
@@ -146,6 +148,7 @@ a > #bannertext
 }
 .threadmode { background-color: #DBAFFF; }
 .indexmode { background-color: #AACCFF; }
+.archivemode { background-color: #DCC206; }
 
 .form { width: 100%; height: 100%; }
 .field { width: 200px; padding: 2px; border: 1px solid #B3AFFF; }
