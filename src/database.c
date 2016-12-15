@@ -228,7 +228,7 @@ int db_archive_status(sqlite3 *db, const char *board_id, const long id)
 
 long db_total_posts(sqlite3 *db, const char *board_id, const long id)
 {
-	/* returns total post count of board_id
+	/* returns lifetime post count of board_id
 	 * if parent_id is provided, post count of that thread is returned
 	 */
 	static const char *const sql[] = {
@@ -436,7 +436,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 
 long db_board_fetch(sqlite3 *db, struct board *ls)
 {
-	/* fetch enumerated boardlist and descriptions
+	/* fetch enumerated boardlist with description information
 	 * returns number of items fetched
 	 */
 	static const char *const sql[] = {
@@ -446,18 +446,16 @@ long db_board_fetch(sqlite3 *db, struct board *ls)
 	ls->count = db_retrieval(db, sql[0]);
 	if (ls->count)
 	{
-		ls->id = (char **) malloc(sizeof(char *) * ls->count);
-		ls->name = (char **) malloc(sizeof(char *) * ls->count);
-		ls->desc = (char **) malloc(sizeof(char *) * ls->count);
+		ls->arr = (struct entry *) malloc(sizeof(struct entry) * ls->count);
 		sqlite3_stmt *stmt;
 		sqlite3_prepare_v2(db, sql[1], -1, &stmt, NULL);
 		unsigned i;
 		for (i = 0; i < ls->count; i++)
 		{
 			sqlite3_step(stmt);
-			ls->id[i] = strdup((char *) sqlite3_column_text(stmt, 0));
-			ls->name[i] = strdup((char *) sqlite3_column_text(stmt, 1));
-			ls->desc[i] = strdup((char *) sqlite3_column_text(stmt, 2));
+			ls->arr[i].id = strdup((char *) sqlite3_column_text(stmt, 0));
+			ls->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 1));
+			ls->arr[i].desc = strdup((char *) sqlite3_column_text(stmt, 2));
 		}
 		sqlite3_finalize(stmt);
 	}
@@ -471,13 +469,11 @@ void db_board_free(struct board *ls)
 		unsigned i;
 		for(i = 0; i < ls->count; i++)
 		{
-			free((!ls->id[i]) ? NULL : ls->id[i]);
-			free((!ls->name[i]) ? NULL : ls->name[i]);
-			free((!ls->desc[i]) ? NULL : ls->desc[i]);
+			free((!ls->arr[i].id) ? NULL : ls->arr[i].id);
+			free((!ls->arr[i].name) ? NULL : ls->arr[i].name);
+			free((!ls->arr[i].desc) ? NULL : ls->arr[i].desc);
 		}
-		free(ls->id);
-		free(ls->name);
-		free(ls->desc);
+		free(ls->arr);
 		ls->count = 0;
 	}
 }
@@ -488,33 +484,33 @@ long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
 	 * returns number of items fetched
 	 * this automated version is intended for COUNT(*) compatible statements
 	 */
-	sqlite3_stmt *stmt;
-	char *row_count = sql_rowcount(sql); /* how many rows? */
-	sqlite3_prepare_v2(db, row_count, -1, &stmt, NULL);
-	sqlite3_step(stmt);
-	res->count = sqlite3_column_int(stmt, 0);
-	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
-	sqlite3_finalize(stmt);
+	char *row_count = sql_rowcount(sql);
+	res->count = db_retrieval(db, row_count); /* how many rows? */
 	free(row_count);
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
-	unsigned i;
-	for (i = 0; i < res->count; i++)
+	if (res->count)
 	{
-		sqlite3_step(stmt);
-		res->arr[i].board_id = strdup((char *) sqlite3_column_text(stmt, 0));
-		res->arr[i].parent_id = sqlite3_column_int(stmt, 1);
-		res->arr[i].id = sqlite3_column_int(stmt, 2);
-		res->arr[i].time = sqlite3_column_int(stmt, 3);
-		res->arr[i].options = (unsigned char) sqlite3_column_int(stmt, 4);
-		res->arr[i].user_priv = (unsigned char) sqlite3_column_int(stmt, 5);
-		res->arr[i].del_pass = strdup((char *) sqlite3_column_text(stmt, 6));
-		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 7));
-		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 8));
-		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
-		res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
-		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
+		res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
+		unsigned i;
+		for (i = 0; i < res->count; i++)
+		{
+			sqlite3_step(stmt);
+			res->arr[i].board_id = strdup((char *) sqlite3_column_text(stmt, 0));
+			res->arr[i].parent_id = sqlite3_column_int(stmt, 1);
+			res->arr[i].id = sqlite3_column_int(stmt, 2);
+			res->arr[i].time = sqlite3_column_int(stmt, 3);
+			res->arr[i].options = (unsigned char) sqlite3_column_int(stmt, 4);
+			res->arr[i].user_priv = (unsigned char) sqlite3_column_int(stmt, 5);
+			res->arr[i].del_pass = strdup((char *) sqlite3_column_text(stmt, 6));
+			res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 7));
+			res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 8));
+			res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
+			res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
+			res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
+		}
+		sqlite3_finalize(stmt);
 	}
-	sqlite3_finalize(stmt);
 	return res->count;
 }
 

@@ -43,6 +43,8 @@ struct parameters {
 	long thread_id;
 	long parent_id; /* redirection */
 	long page_no;
+	long active_threads; /* statistics */
+	long archived_threads;
 };
 
 const char *const global_template[] = {
@@ -258,9 +260,9 @@ void display_headers(const struct board *list, const char *board_id)
 	};
 	unsigned i, sel = rand() % BANNER_COUNT;
 	for (i = 0; i < list->count; i++)
-		if (!strcmp(list->id[i], board_id))
+		if (!strcmp(list->arr[i].id, board_id))
 			break;
-	fprintf(stdout, headers[0], board_id, list->name[i]);
+	fprintf(stdout, headers[0], board_id, list->arr[i].name);
 	fprintf(stdout, headers[1], BANNER_LOC, sel, IDENT_FULL, IDENT_FULL);
 }
 
@@ -281,7 +283,8 @@ void display_boardlist(const struct board *list, const char *title)
 		fprintf(stdout, navi[i], (!title) ? "" : title);
 	for (i = 0; i < list->count; i++)
 	{
-		fprintf(stdout, navi[2], list->id[i], list->name[i], list->id[i]);
+		struct entry *board = &list->arr[i];
+		fprintf(stdout, navi[2], board->id, board->name, board->id);
 		if (i != list->count - 1)
 			fprintf(stdout, " / ");
 	}
@@ -424,7 +427,7 @@ void display_statistics(struct parameters *params, long replies, long thread_id)
 	/* display thread statistics
 	 * INDEX_MODE requires explicit thread id for URL links
 	 */
-	const char *const ins[] = {
+	static const char *const ins[] = {
 		"<div class=\"navi controls\">",
 		    "\xF0\x9F\x93\x8E", /* Unicode U+1F4CE */
 			"%s No repl%s yet. ",
@@ -537,8 +540,13 @@ void homepage_mode(const struct board *list)
 	for (i = 0; i < static_size(directory); i++)
 	{
 		if (i == 1)
+		{
 			for (j = 0; j < list->count; j++)
-				fprintf(stdout, directory[i], list->id[j], list->name[j], list->desc[j]);
+			{
+				struct entry *board = &list->arr[j];
+				fprintf(stdout, directory[i], board->id, board->name, board->desc);
+			}
+		}
 		else
 			fprintf(stdout, directory[i]);
 	}
@@ -570,32 +578,29 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, 0);
 	display_navigation(params, 0);
-	const char *const sql[] = {
-		"SELECT COUNT(*) FROM active_threads WHERE board_id = \"%s\";",
+	static const char *const sql[] = {
 		"SELECT post_id FROM active_threads WHERE "
 			"board_id = \"%s\" ORDER BY last_bump DESC;",
 		"SELECT * FROM posts WHERE "
 			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;"
 	};
-	char *cmd[static_size(sql)] = { 0 }; /* sql buffer */
-	unsigned i;
-	for (i = 0; i < static_size(sql) - 1; i++)
-		cmd[i] = sql_generate(sql[i], params->board_id);
-	long thread_count = db_retrieval(db, cmd[0]);
-	long *index = db_array_retrieval(db, cmd[1], thread_count);
+	long thread_count = params->active_threads;
+	char *rank = sql_generate(sql[0], params->board_id);
+	long *index = db_array_retrieval(db, rank, thread_count);
 	long offset = params->page_no * THREADS_PER_PAGE;
 	long limit = min(offset + THREADS_PER_PAGE, thread_count);
 	if (offset > thread_count) /* sanity check */
 		fprintf(stdout, "<h2>There aren't that many threads here.</h2>");
 	else
 	{
+		unsigned i;
 		for (i = offset; i < limit; i++)
 		{
 			if (i != offset)
 				fprintf(stdout, "<div class=\"line\"></div>");
 			struct resource res; /* fetch thread */
-			cmd[2] = sql_generate(sql[2], params->board_id, index[i]);
-			long replies = db_resource_fetch(db, &res, cmd[2]) - 1;
+			char *current = sql_generate(sql[1], params->board_id, index[i]);
+			long replies = db_resource_fetch(db, &res, current) - 1;
 			long omitted = 0;
 			if (replies > MAX_REPLY_PREVIEW)
 				omitted = replies - MAX_REPLY_PREVIEW;
@@ -604,13 +609,12 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 			display_statistics(params, replies, index[i]);
 			display_resource(&res, params->mode, omitted + 1); /* replies */
 			db_resource_free(&res);
-			free((!cmd[2]) ? NULL : cmd[2]);
+			free(current);
 		}
 	}
 	display_navigation(params, 1);
 	free((!index) ? NULL : index);
-	for (i = 0; i < static_size(sql) - 1; i++)
-		free((!cmd[i]) ? NULL : cmd[i]);
+	free(rank);
 }
 
 void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
@@ -622,7 +626,7 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, params->thread_id);
 	display_navigation(params, 0);
-	const char *sql =
+	static const char *sql =
 		"SELECT * FROM posts WHERE "
 			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;";
 	struct resource res; /* fetch thread */
@@ -662,13 +666,26 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 		if (board)
 		{
 			for (i = 0; i < list->count && !params.board_id; i++)
-				if (!strcmp(list->id[i], board)) /* validate board */
-					params.board_id = list->id[i];
+				if (!strcmp(list->arr[i].id, board)) /* validate board */
+					params.board_id = list->arr[i].id;
 		}
 		if (!params.board_id)
 			params.mode = NOT_FOUND; /* general 404 error */
 		else
 		{
+			/* get general board statistics */
+			static const char *const sql[] = {
+				"SELECT COUNT(*) FROM active_threads WHERE board_id = \"%s\";",
+				"SELECT COUNT(*) FROM archived_threads WHERE board_id = \"%s\";"
+			};
+			char *cmd[2] = { 0 };
+			for (i = 0; i < 2; i++)
+				cmd[i] = sql_generate(sql[i], params.board_id);
+			params.active_threads = db_retrieval(db, cmd[0]);
+			params.archived_threads = db_retrieval(db, cmd[1]);
+			for (i = 0; i < 2; i++)
+				free(cmd[i]);
+
 			params.thread_id = atoi_s(thread);
 			if (params.thread_id > 0)
 			{
@@ -758,7 +775,7 @@ int main(void)
 	sprintf(pageload, "-- completed in %.3fms.", delta);
 	fprintf(stdout, global_template[1], IDENT, REVISION, DB_VER, (!delta) ? "" : pageload);
 
-	abort: fflush(stdout);
+	abort: /*fflush(stdout); */
 	db_board_free(&list);
 	sqlite3_close(db);
 	return 0;

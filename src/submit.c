@@ -112,7 +112,7 @@ int main(void)
 			db_board_fetch(db, &list);
 			unsigned i, valid = 0;
 			for (i = 0; i < list.count && !valid; i++)
-				if (!strcmp(list.id[i], cm.board_id)) /* validate board */
+				if (!strcmp(list.arr[i].id, cm.board_id)) /* validate board */
 					valid = 1;
 			if (!valid)
 				abort_now("<h2>Specified board doesn't exist.</h2>");

@@ -20,14 +20,20 @@ enum post_options {
 	POST_BAN  = (1 << 2)
 };
 
-/* database fetch containers */
+/* board list */
+
+struct entry {
+	char *id;
+	char *name;
+	char *desc;
+};
 
 struct board {
 	unsigned count;
-	char **id;
-	char **name;
-	char **desc;
+	struct entry *arr;
 };
+
+/* post container */
 
 struct post {
 	char *board_id;
