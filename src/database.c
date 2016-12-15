@@ -12,7 +12,7 @@
 
 /*
  * database.c
- * database retrieval, validation, insertion, and resource fetching
+ * database retrieval, state validation, insertion, and resource fetching
  */
 
 /* SQLite3 error lookup */
@@ -188,28 +188,6 @@ unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id)
 	return status;
 }
 
-int db_validate_board(sqlite3 *db, const char *board_id)
-{
-	/* check if board_id exists */
-	static const char *sql = "SELECT COUNT(*) FROM boards WHERE id = \"%s\";";
-	char *cmd = sql_generate(sql, board_id);
-	int exists = db_retrieval(db, cmd);
-	free(cmd);
-	return exists;
-}
-
-int db_validate_parent(sqlite3 *db, const char *board_id, const long id)
-{
-	/* check if post id is a parent post in board_id */
-	static const char *sql =
-		"SELECT COUNT(*) FROM active_threads "
-			"WHERE board_id = \"%s\" AND post_id = %ld;";
-	char *cmd = sql_generate(sql, board_id, id);
-	int exists = db_retrieval(db, cmd);
-	free(cmd);
-	return exists;
-}
-
 long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 {
 	/* return parent_id of requested post number
@@ -224,7 +202,19 @@ long db_find_parent(sqlite3 *db, const char *board_id, const long id)
 	return parent_id;
 }
 
-long db_archive_status(sqlite3 *db, const char *board_id, const long id)
+int db_active_status(sqlite3 *db, const char *board_id, const long id)
+{
+	/* return non-zero if requested thread_id is active */
+	static const char *sql =
+		"SELECT COUNT(*) FROM active_threads "
+			"WHERE board_id = \"%s\" AND post_id = %ld;";
+	char *cmd = sql_generate(sql, board_id, id);
+	int exists = db_retrieval(db, cmd);
+	free(cmd);
+	return exists;
+}
+
+int db_archive_status(sqlite3 *db, const char *board_id, const long id)
 {
 	/* return non-zero if requested thread_id is archived */
 	static const char *sql =
@@ -328,7 +318,7 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	return err;
 }
 
-int db_post_delete(sqlite3 *db, const char *board_id, const long id, int mode)
+int db_post_delete(sqlite3 *db, const char *board_id, const long id)
 {
 	/* delete post
 	 * if a parent thread, delete all child posts
@@ -353,7 +343,8 @@ int db_post_delete(sqlite3 *db, const char *board_id, const long id, int mode)
 	{
 		if (res.arr[0].id == res.arr[0].parent_id) /* parent thread */
 		{
-			success = !db_transaction(db, (!mode) ? cmd[2] : cmd[3]);
+			int is_active = db_active_status(db, board_id, id);
+			success = !db_transaction(db, (is_active) ? cmd[2] : cmd[3]);
 			success = !db_transaction(db, cmd[4]);
 		}
 		else
@@ -374,7 +365,7 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
 		"UPDATE active_threads SET last_bump = %ld "
 			"WHERE board_id = \"%s\" AND post_id = %ld;";
 	int bumped = 0;
-	if (db_validate_parent(db, board_id, id)) /* valid thread? */
+	if (db_active_status(db, board_id, id)) /* eligible for bump? */
 	{
 		if (db_total_posts(db, board_id, id) <= THREAD_BUMP_LIMIT)
 		{
@@ -435,7 +426,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		cmd[4] = sql_generate(sql[4], board_id, tm);
 		post_id = db_array_retrieval(db, cmd[4], expire_count);
 		for (i = 0; i < expire_count; i++)
-			success = db_post_delete(db, board_id, post_id[i], 0);
+			success = db_post_delete(db, board_id, post_id[i]);
 		free(post_id);
 	}
 	for (i = 0; i < static_size(sql); i++)
@@ -522,42 +513,6 @@ long db_resource_fetch(sqlite3 *db, struct resource *res, const char *sql)
 		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
 		res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
 		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
-	}
-	sqlite3_finalize(stmt);
-	return res->count;
-}
-
-long db_resource_fetch_specific(sqlite3 *db, struct resource *res, char *sql, int limit)
-{
-	/* fetch enumerated post container that match requested params
-	 * returns number of items fetched
-	 * this manual version is intended for LIMIT/OFFSET statements ONLY
-	 */
-	sqlite3_stmt *stmt;
-	res->count = limit; /* user-provided row count */
-	res->arr = (struct post *) malloc(sizeof(struct post) * res->count);
-	sqlite3_prepare_v2(db, sql, -1, &stmt, NULL); /* fetch results */
-	unsigned i;
-	for (i = 0; i < res->count; i++)
-	{
-		int err = sqlite3_step(stmt);
-		res->arr[i].board_id = strdup((char *) sqlite3_column_text(stmt, 0));
-		res->arr[i].parent_id = sqlite3_column_int(stmt, 1);
-		res->arr[i].id = sqlite3_column_int(stmt, 2);
-		res->arr[i].time = sqlite3_column_int(stmt, 3);
-		res->arr[i].options = (unsigned char) sqlite3_column_int(stmt, 4);
-		res->arr[i].user_priv = (unsigned char) sqlite3_column_int(stmt, 5);
-		res->arr[i].del_pass = strdup((char *) sqlite3_column_text(stmt, 6));
-		res->arr[i].ip = strdup((char *) sqlite3_column_text(stmt, 7));
-		res->arr[i].name = strdup((char *) sqlite3_column_text(stmt, 8));
-		res->arr[i].trip = strdup((char *) sqlite3_column_text(stmt, 9));
-		res->arr[i].subject = strdup((char *) sqlite3_column_text(stmt, 10));
-		res->arr[i].comment = strdup((char *) sqlite3_column_text(stmt, 11));
-		if (err == SQLITE_DONE) /* early exit */
-		{
-			res->count = i;
-			break;
-		}
 	}
 	sqlite3_finalize(stmt);
 	return res->count;

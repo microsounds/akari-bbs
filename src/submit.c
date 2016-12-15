@@ -108,10 +108,17 @@ int main(void)
 		{
 			strip_whitespace(utf8_rewrite(cm.board_id));
 			xss_sanitize(&cm.board_id); /* scrub */
-			if (!db_validate_board(db, cm.board_id))
+			struct board list;
+			db_board_fetch(db, &list);
+			unsigned i, valid = 0;
+			for (i = 0; i < list.count && !valid; i++)
+				if (!strcmp(list.id[i], cm.board_id)) /* validate board */
+					valid = 1;
+			if (!valid)
 				abort_now("<h2>Specified board doesn't exist.</h2>");
 			if (db_status_flags(db, cm.board_id, -1) & BOARD_LOCKED)
 				abort_now("<h2>Posting is disabled on this board.<h2>");
+			db_board_free(&list);
 		}
 		else
 			abort_now("<h2>No board provided.</h2>");
@@ -139,8 +146,8 @@ int main(void)
 		else if (parent_str) /* REPLY_MODE */
 		{
 			cm.parent_id = atoi_s(parent_str);
-			if (!db_validate_parent(db, cm.board_id, cm.parent_id))
-				abort_now("<h2>Specified thread doesn't exist.</h2>");
+			if (cm.parent_id != db_find_parent(db, cm.board_id, cm.parent_id))
+				abort_now("<h2>Specified parent thread doesn't exist.</h2>");
 			if (db_status_flags(db, cm.board_id, cm.parent_id) & THREAD_LOCKED)
 				abort_now("<h2>This thread is locked.<h2>");
 		}

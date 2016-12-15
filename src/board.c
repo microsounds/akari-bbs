@@ -628,8 +628,8 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	struct resource res; /* fetch thread */
 	char *cmd = sql_generate(sql, params->board_id, params->thread_id);
 	int replies = db_resource_fetch(db, &res, cmd) - 1;
-	struct resource op = { 1, res.arr }; /* OP */
-	display_resource(&op, params->mode, 0);
+	struct resource parent = { 1, res.arr }; /* OP */
+	display_resource(&parent, params->mode, 0);
 	display_statistics(params, replies, 0);
 	display_resource(&res, params->mode, 1); /* replies */
 	display_navigation(params, 1);
@@ -661,7 +661,7 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 		           *peek = query_search(&query, "peek");
 		if (board)
 		{
-			for (i = 0; i < list->count; i++)
+			for (i = 0; i < list->count && !params.board_id; i++)
 				if (!strcmp(list->id[i], board)) /* validate board */
 					params.board_id = list->id[i];
 		}

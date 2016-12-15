@@ -15,7 +15,7 @@ OUTPUT=$(patsubst $(SRC)/%.c,%.cgi, $(MAINS))
 OBJECTS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(INPUT))
 MAIN_OBJS=$(patsubst $(SRC)/%.c,$(OBJ)/%.o, $(MAINS))
 
-.PHONY: all release clean help
+.PHONY: all profile release clean help
 
 # target: all - default, rebuild outdated .o and relink .cgi
 all: $(OUTPUT)
@@ -27,6 +27,11 @@ $(OBJ)/%.o: $(SRC)/%.c $(wildcard $(INC)/*.h)
 	@mkdir -p $(OBJ)
 	$(CC) $(CFLAGS) $(DEBUG) -I$(INC) -c $< -o $@
 
+# target: profile - reset and build gprof profiling binaries only
+profile: CC += -pg
+profile: clean all
+	rm -rf $(OBJ)/
+
 # target: release - reset and build stripped binaries only
 release: DEBUG = -D NDEBUG
 release: CC += -s
@@ -35,7 +40,7 @@ release: clean all
 
 # target: clean - reset working directory
 clean:
-	rm -rf $(OBJ)/ $(OUTPUT)
+	rm -rf $(OBJ)/ $(OUTPUT) $(wildcard *.out)
 
 # target: help - display available options
 help:
