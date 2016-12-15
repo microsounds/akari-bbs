@@ -18,10 +18,11 @@
 
 /*
 	todo:
-		index mode freezes on non-zero page numbers
+		pager should grow with thread count
+		stress test thread cycling
+		stress test thread pruning and archival
+		enquote_comment is corrupting strings at random
 		peek mode
-		archive mode
-		"This thread is archived."
 		rewrite enquote_comment to get correct thread and link
 
 	>>12345
@@ -68,7 +69,7 @@ const char *const global_template[] = {
 	"</html>"
 };
 
-/* TODO:
+/* PRE-REWRITE TODO:
 	- html goes in separate templates.h / templates.c
 	- insert post number into localStorage to emulate (You) quotes
 	- add admin panel w/ login
@@ -364,7 +365,7 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 		case ARCHIVE_MODE:
 			fprintf(stdout, postform[4], thread_id); goto end;
 	}
-	/* client-side character limits */
+	/* postform body and character limits */
 	fprintf(stdout, postform[5], NAME_MAX_LENGTH, DEFAULT_NAME,
 		OPTIONS_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH, COMMENT_MAX_LENGTH);
 	end: fprintf(stdout, postform[6]);
@@ -389,14 +390,16 @@ void display_navigation(const struct parameters *params, int bottom)
 			"Page %u of %u",
 		"</span>"
 	};
+	/* functionally identical */
+	int mode = (params->mode == ARCHIVE_MODE) ? THREAD_MODE : params->mode;
 	unsigned i;
 	for (i = 0; i < 2; i++)
 		fprintf(stdout, navi[i]);
-	if (params->mode == THREAD_MODE)
+	if (mode == THREAD_MODE) /* return button */
 		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
 	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
 	unsigned pages = MAX_ACTIVE_THREADS / THREADS_PER_PAGE;
-	if (params->mode == INDEX_MODE) /* info */
+	if (mode == INDEX_MODE) /* pagination */
 	{
 		if (params->page_no > 0)
 			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, params->page_no - 1);
@@ -411,16 +414,60 @@ void display_navigation(const struct parameters *params, int bottom)
 			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id, params->page_no + 1);
 		fprintf(stdout, navi[10], params->page_no, pages - 1);
 	}
-	else if (params->mode == THREAD_MODE)
+	else if (mode == THREAD_MODE) /* thread info */
 		fprintf(stdout, navi[5], params->thread_id);
 	fprintf(stdout, "%s%s", navi[11], navi[0]);
 }
 
-void display_resource(struct resource *res, int mode)
+void display_statistics(struct parameters *params, long replies, long thread_id)
 {
-	/* print all post data stored in post container */
+	/* display thread statistics
+	 * INDEX_MODE requires explicit thread id for URL links
+	 */
+	const char *const ins[] = {
+		"<div class=\"navi controls\">",
+		    "\xF0\x9F\x93\x8E", /* Unicode U+1F4CE */
+			"%s No repl%s yet. ",
+			"%s %ld repl%s. ",
+			"%s %ld repl%s, %ld post%s omitted. ",
+			"[<a href=\"%s?board=%s&thread=%ld\">Click here</a>] to view.",
+		"</div>"
+	};
+	/* functionally identical */
+	int mode = (params->mode == ARCHIVE_MODE) ? THREAD_MODE : params->mode;
+	const char *p1 = (replies == 1) ? "y" : "ies"; /* plurals */
+	const char *p2 = (replies == 1) ? "" : "s";
+	fprintf(stdout, ins[0]);
+	if (!replies)
+		fprintf(stdout, ins[2], ins[1], p1);
+	else if (mode == INDEX_MODE)
+	{
+		long omitted = 0;
+		if (replies > MAX_REPLY_PREVIEW)
+			omitted = replies - MAX_REPLY_PREVIEW;
+		if (!omitted)
+			fprintf(stdout, ins[3], ins[1], replies, p1);
+		else
+			fprintf(stdout, ins[4], ins[1], replies, p1, omitted, p2);
+		fprintf(stdout, ins[5], BOARD_SCRIPT, params->board_id, thread_id);
+	}
+	else if (mode == THREAD_MODE)
+	{
+		if (!replies)
+			fprintf(stdout, ins[2], ins[1], p1);
+		else
+			fprintf(stdout, ins[3], ins[1], replies, p1);
+	}
+	fprintf(stdout, ins[6]);
+}
+
+void display_resource(struct resource *res, int mode, int offset)
+{
+	/* print all post data stored in post container
+	 * starting from given offset value
+	 */
 	unsigned i;
-	for (i = 0; i < res->count; i++)
+	for (i = offset; i < res->count; i++)
 	{
 		/* use default name if not provided */
 		const char *name = (!res->arr[i].name) ? DEFAULT_NAME : res->arr[i].name;
@@ -430,6 +477,8 @@ void display_resource(struct resource *res, int mode)
 		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
 		const char *comment = format_comment(&res->arr[i].comment);
 		const char *op = (is_parent) ? " parent" : ""; /* opening post */
+		if (!is_parent) /* arrow marker wrapper */
+			fprintf(stdout, "<div><div class=\"navi marker\">&gt;&gt;</div>");
 		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
 		if (res->arr[i].options & POST_SAGE)
 			fprintf(stdout, "<span class=\"pSubject\">[sage]</span> ");
@@ -451,7 +500,7 @@ void display_resource(struct resource *res, int mode)
 		                     BOARD_SCRIPT, res->arr[i].board_id, res->arr[i].parent_id);
 		fprintf(stdout, "</span>");
 		fprintf(stdout, "<div class=\"pComment\">%s</div>", comment);
-		fprintf(stdout, "</div><br/>");
+		fprintf(stdout, "</div>%s", (!is_parent) ? "</div>" : ""); /* end wrapper */
 	}
 }
 
@@ -514,7 +563,9 @@ void not_found(const char *refer)
 
 void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
-	/* compute index ranking and display threads from that page */
+	/* compute index ranking
+	 * display thread previews from selected page
+	 */
 	display_headers(list, params->board_id);
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, 0);
@@ -526,76 +577,47 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 		"SELECT * FROM posts WHERE "
 			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;"
 	};
-	const char *const ins[] = {
-		"<div class=\"line\"></div>",
-		"<div class=\"navi controls\">",
-			"No repl%s. ",
-			"%ld repl%s. ",
-			"%ld repl%s, %ld post%s omitted. ",
-			"[<a href=\"%s?board=%s&thread=%ld\">Click here</a>] to view."
-		"</div>"
-	};
-	char *cmd[static_size(sql)]; /* sql buffer */
-	unsigned i, j;
+	char *cmd[static_size(sql)] = { 0 }; /* sql buffer */
+	unsigned i;
 	for (i = 0; i < static_size(sql) - 1; i++)
 		cmd[i] = sql_generate(sql[i], params->board_id);
 	long thread_count = db_retrieval(db, cmd[0]);
 	long *index = db_array_retrieval(db, cmd[1], thread_count);
-	long offset = THREADS_PER_PAGE * params->page_no;
-	long limit = offset + THREADS_PER_PAGE;
-	if (thread_count < THREADS_PER_PAGE)
+	long offset = params->page_no * THREADS_PER_PAGE;
+	long limit = min(offset + THREADS_PER_PAGE, thread_count);
+	if (offset > thread_count) /* sanity check */
+		fprintf(stdout, "<h2>There aren't that many threads here.</h2>");
+	else
 	{
-		/* insufficient threads to fill page */
-		offset = 0;
-		if (thread_count < limit)
-			limit = thread_count;
-		if (params->page_no > 0)
-			goto abort;
-	}
-	for (i = offset; i < limit; i++)
-	{
-		if (i != offset)
-			fprintf(stdout, ins[0]);
-		struct resource res; /* fetch thread */
-		cmd[2] = sql_generate(sql[2], params->board_id, index[i]);
-		long replies = db_resource_fetch(db, &res, cmd[2]) - 1;
-		free(cmd[2]);
-		long omitted = 0; /* display preview only */
-		if (replies > MAX_REPLY_PREVIEW)
-			omitted = replies - MAX_REPLY_PREVIEW;
-		struct resource parent = { 1 , res.arr }; /* OP */
-		display_resource(&parent, params->mode);
-		fprintf(stdout, ins[1]); /* instructions */
-		const char *p1 = (replies == 1) ? "y" : "ies";
-		const char *p2 = (replies == 1) ? "" : "s";
-		if (!replies)
-			fprintf(stdout, ins[2], p1);
-		else if (!omitted)
-			fprintf(stdout, ins[3], replies, p1);
-		else
-			fprintf(stdout, ins[4], replies, p1, omitted, p2);
-		fprintf(stdout, ins[5], BOARD_SCRIPT, params->board_id, index[i]);
-		if (replies)
+		for (i = offset; i < limit; i++)
 		{
-			struct resource prev; /* duplicated post container */
-			prev.count = replies - omitted;
-			prev.arr = (struct post *) malloc(sizeof(struct post) * prev.count);
-			for (j = 0; j < prev.count; j++) /* truncate and skip OP */
-				prev.arr[j] = res.arr[omitted + j + 1];
-			display_resource(&prev, params->mode);
-			free(prev.arr);
+			if (i != offset)
+				fprintf(stdout, "<div class=\"line\"></div>");
+			struct resource res; /* fetch thread */
+			cmd[2] = sql_generate(sql[2], params->board_id, index[i]);
+			long replies = db_resource_fetch(db, &res, cmd[2]) - 1;
+			long omitted = 0;
+			if (replies > MAX_REPLY_PREVIEW)
+				omitted = replies - MAX_REPLY_PREVIEW;
+			struct resource parent = { 1 , res.arr }; /* OP */
+			display_resource(&parent, params->mode, 0);
+			display_statistics(params, replies, index[i]);
+			display_resource(&res, params->mode, omitted + 1); /* replies */
+			db_resource_free(&res);
+			free((!cmd[2]) ? NULL : cmd[2]);
 		}
-		db_resource_free(&res);
 	}
-	abort: display_navigation(params, 1);
-	free((!index) ?  NULL : index);
-	for (i = 0; i < static_size(sql); i++)
+	display_navigation(params, 1);
+	free((!index) ? NULL : index);
+	for (i = 0; i < static_size(sql) - 1; i++)
 		free((!cmd[i]) ? NULL : cmd[i]);
 }
 
 void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 {
-	/* display requested thread */
+	/* display requested thread with
+	 * thread statistics inserted between OP and replies
+	 */
 	display_headers(list, params->board_id);
 	display_boardlist(list, NULL);
 	display_postform(params->mode, params->board_id, params->thread_id);
@@ -605,8 +627,11 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 			"board_id = \"%s\" AND parent_id = %ld ORDER BY id ASC;";
 	struct resource res; /* fetch thread */
 	char *cmd = sql_generate(sql, params->board_id, params->thread_id);
-	db_resource_fetch(db, &res, cmd);
-	display_resource(&res, params->mode);
+	int replies = db_resource_fetch(db, &res, cmd) - 1;
+	struct resource op = { 1, res.arr }; /* OP */
+	display_resource(&op, params->mode, 0);
+	display_statistics(params, replies, 0);
+	display_resource(&res, params->mode, 1); /* replies */
 	display_navigation(params, 1);
 	db_resource_free(&res);
 	free(cmd);

@@ -103,6 +103,7 @@ a > #bannertext
 .navi > a:hover { color: red; }
 .boardlist { font-size: 12px; }
 .controls { color: #312A2A; font-size: 13px; }
+.marker { float: left; margin: 5px 0px 0px 2px; }
 .right { float: right; }
 .line
 {
@@ -255,7 +256,8 @@ textarea, input { color: #646464; font-family: sans-serif; }
 	display: inline-block;
 	word-wrap: break-word;
 	word-break: break-word; /* possibly broken in Mozilla Firefox 45+ */
-	margin: 4px 10px 4px 6px;
+	max-width: 95%;
+	margin: 4px 10px 4px 2px;
 	padding: 6px 15px 12px 10px;
 	background-color: #B3AFFF;
 	border-bottom: 1px solid #DBBFFF;
