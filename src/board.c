@@ -22,6 +22,7 @@
 		stress test thread cycling
 		stress test thread pruning and archival
 		enquote_comment is corrupting strings at random
+		archived thread viewer
 		peek mode
 		rewrite enquote_comment to get correct thread and link
 
@@ -387,8 +388,10 @@ void display_navigation(const struct parameters *params, int bottom)
 			"Thread No.%ld",
 		/* index mode */
 			"[<a href=\"%s?board=%s&page=%u\">&lt;&lt;</a>] ",
+			"[<a href=\"%s?board=%s\">&lt;&lt;</a>] ",
 			"[<a href=\"%s?board=%s&page=%u\">&gt;&gt;</a>] ",
 			"[<b>%u</b>] ",
+			"[<a href=\"%s?board=%s\">%u</a>] ",
 			"[<a href=\"%s?board=%s&page=%u\">%u</a>] ",
 			"Page %u of %u",
 		"</span>"
@@ -401,25 +404,33 @@ void display_navigation(const struct parameters *params, int bottom)
 	if (mode == THREAD_MODE) /* return button */
 		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
 	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
-	unsigned pages = MAX_ACTIVE_THREADS / THREADS_PER_PAGE;
-	if (mode == INDEX_MODE) /* pagination */
+	unsigned pages = params->active_threads / THREADS_PER_PAGE + 1;
+	unsigned current_page = params->page_no + 1;
+	if (mode == INDEX_MODE)
 	{
-		if (params->page_no > 0)
-			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, params->page_no - 1);
-		for (i = 0; i < pages; i++)
+		/* 1-indexed auto pagination
+		 * URLs pointing to Page 1 are implicitly omitted
+		 */
+		if (current_page > 2) /* << */
+			fprintf(stdout, navi[6], BOARD_SCRIPT, params->board_id, current_page - 1);
+		else if (current_page == 2) /* Page 1 */
+			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id);
+		for (i = 1; i <= pages; i++)
 		{
-			if (i == params->page_no)
-				fprintf(stdout, navi[8], i);
+			if (i == current_page)
+				fprintf(stdout, navi[9], i);
+			else if (i == 1) /* Page 1 */
+				fprintf(stdout, navi[10], BOARD_SCRIPT, params->board_id, i);
 			else
-				fprintf(stdout, navi[9], BOARD_SCRIPT, params->board_id, i, i);
+				fprintf(stdout, navi[11], BOARD_SCRIPT, params->board_id, i, i);
 		}
-		if (params->page_no < pages - 1)
-			fprintf(stdout, navi[7], BOARD_SCRIPT, params->board_id, params->page_no + 1);
-		fprintf(stdout, navi[10], params->page_no, pages - 1);
+		if (current_page < pages) /* >> */
+			fprintf(stdout, navi[8], BOARD_SCRIPT, params->board_id, current_page + 1);
+		fprintf(stdout, navi[12], current_page, pages);
 	}
 	else if (mode == THREAD_MODE) /* thread info */
 		fprintf(stdout, navi[5], params->thread_id);
-	fprintf(stdout, "%s%s", navi[11], navi[0]);
+	fprintf(stdout, "%s%s", navi[13], navi[0]);
 }
 
 void display_statistics(struct parameters *params, long replies, long thread_id)
@@ -441,6 +452,8 @@ void display_statistics(struct parameters *params, long replies, long thread_id)
 	const char *p1 = (replies == 1) ? "y" : "ies"; /* plurals */
 	const char *p2 = (replies == 1) ? "" : "s";
 	fprintf(stdout, ins[0]);
+	if (replies > THREAD_BUMP_LIMIT)
+		fprintf(stdout, "Bump limit reached. ");
 	if (!replies)
 		fprintf(stdout, ins[2], ins[1], p1);
 	else if (mode == INDEX_MODE)
@@ -705,6 +718,8 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 			{
 				params.mode = INDEX_MODE;
 				params.page_no = atoi_s(page);
+				if (params.page_no > 0) /* pages 0-indexed internally */
+					params.page_no -= 1;
 				if (params.page_no > MAX_ACTIVE_THREADS / THREADS_PER_PAGE)
 					params.page_no = 0;
 			}
@@ -763,8 +778,9 @@ int main(void)
 		"Homepage", "Index Mode", "Thread Mode", "Archive Mode",
 		"Peek Mode", "404 Not Found", "Redirect"
 	};
-	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>get string: \"%s\"",
-		modes[params.mode], params.board_id, params.thread_id, params.page_no, getenv("QUERY_STRING"));
+	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>active/archived: %ld/%ld get string: \"%s\"",
+		modes[params.mode], params.board_id, params.thread_id, params.page_no, params.active_threads,
+		params.archived_threads, getenv("QUERY_STRING"));
 
 	/* footer
 	 * version info footer with page generation time
@@ -775,7 +791,7 @@ int main(void)
 	sprintf(pageload, "-- completed in %.3fms.", delta);
 	fprintf(stdout, global_template[1], IDENT, REVISION, DB_VER, (!delta) ? "" : pageload);
 
-	abort: /*fflush(stdout); */
+	abort: fflush(stdout);
 	db_board_free(&list);
 	sqlite3_close(db);
 	return 0;
