@@ -18,7 +18,6 @@
 
 /*
 	todo:
-		pager should grow with thread count
 		stress test thread cycling
 		stress test thread pruning and archival
 		enquote_comment is corrupting strings at random
@@ -404,7 +403,9 @@ void display_navigation(const struct parameters *params, int bottom)
 	if (mode == THREAD_MODE) /* return button */
 		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
 	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
-	unsigned pages = params->active_threads / THREADS_PER_PAGE + 1;
+	unsigned pages = params->active_threads / THREADS_PER_PAGE;
+	if (params->active_threads % THREADS_PER_PAGE)
+		pages++; /* ceiling */
 	unsigned current_page = params->page_no + 1;
 	if (mode == INDEX_MODE)
 	{
@@ -720,8 +721,11 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 				params.page_no = atoi_s(page);
 				if (params.page_no > 0) /* pages 0-indexed internally */
 					params.page_no -= 1;
-				if (params.page_no > MAX_ACTIVE_THREADS / THREADS_PER_PAGE)
-					params.page_no = 0;
+				long max_pages = params.active_threads / THREADS_PER_PAGE;
+				if (params.active_threads % THREADS_PER_PAGE)
+					max_pages++; /* ceiling */
+				if (params.page_no >= max_pages)
+					params.mode = NOT_FOUND;
 			}
 		}
 		query_free(&query);

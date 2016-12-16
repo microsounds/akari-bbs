@@ -148,6 +148,8 @@ int main(void)
 			cm.parent_id = atoi_s(parent_str);
 			if (cm.parent_id != db_find_parent(db, cm.board_id, cm.parent_id))
 				abort_now("<h2>Specified parent thread doesn't exist.</h2>");
+			if (db_archive_status(db, cm.board_id, cm.parent_id))
+				abort_now("<h2>You cannot reply to this thread anymore.</h2>");
 			if (db_status_flags(db, cm.board_id, cm.parent_id) & THREAD_LOCKED)
 				abort_now("<h2>This thread is locked.<h2>");
 		}
@@ -205,7 +207,7 @@ int main(void)
 		}
 		if (!(err = db_post_insert(db, &cm))) /* insert post / push new thread */
 		{
-			db_archive_oldest(db, cm.board_id); /* prune old threads */
+			db_archive_oldest(db, cm.board_id); /* prune stale threads */
 			if (mode == REPLY_MODE)
 			{
 				if (!(cm.options & POST_SAGE)) /* and bump the parent */

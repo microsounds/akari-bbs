@@ -322,7 +322,6 @@ int db_post_delete(sqlite3 *db, const char *board_id, const long id)
 {
 	/* delete post
 	 * if a parent thread, delete all child posts
-	 * non-zero mode will remove from active_threads table
 	 * returns non-zero if successful
 	 */
 	static const char *const sql[] = {
@@ -335,7 +334,7 @@ int db_post_delete(sqlite3 *db, const char *board_id, const long id)
 	};
 	char *cmd[static_size(sql)] = { 0 };
 	unsigned i, success = 0;
-	for (i = 0; i < static_size(sql); i++) /* generate SQL */
+	for (i = 0; i < static_size(sql); i++)
 		cmd[i] = sql_generate(sql[i], board_id, id);
 	struct resource res;
 	db_resource_fetch(db, &res, cmd[1]);
@@ -379,58 +378,57 @@ int db_bump_parent(sqlite3 *db, const char *board_id, const long id)
 
 int db_archive_oldest(sqlite3 *db, const char *board_id)
 {
-	/* archive thread(s) with oldest last_bump timestamps
-	 * delete all archived threads older than expiry date
-	 * returns non-zero if operations performed
+	/* archive stale threads from active_threads
+	 * delete archived_threads past their expiration date
+	 * return non-zero if operations performed
 	 */
 	static const char *const sql[] = {
-		/* get number of active threads */
+		/* find stale threads */
 		"SELECT COUNT(*) FROM active_threads WHERE board_id = \"%s\";",
-		/* get post no's of active threads to archive */
 		"SELECT post_id FROM active_threads WHERE board_id = \"%s\" "
-			"ORDER BY last_bump DESC LIMIT %ld OFFSET %ld;",
-		/* archive threads */
-		"INSERT INTO archived_threads VALUES(\"%s\", %ld, %ld); "
+			"ORDER BY last_bump ASC;",
+		/* move thread to archive */
+		"INSERT INTO archived_threads VALUES(\"%s\", %ld, %ld);",
 		"DELETE FROM active_threads WHERE board_id = \"%s\" AND post_id = %ld;",
-		/* get number of expired archive threads */
+		/* find expired archive threads */
 		"SELECT COUNT(*) FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",
-		/* get post no's of expired archive threads */
-		"SELECT post_id FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;",
+		"SELECT post_id FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;"
 	};
-	char *cmd[static_size(sql)] = { 0 }; /* generated SQL storage */
-	long *post_id; /* post no's to work on */
-	long tm = time(NULL);
-	unsigned i, success = 0;
-
-	cmd[0] = sql_generate(sql[0], board_id); /* move threads to archive */
-	unsigned thread_count = db_retrieval(db, cmd[0]);
+	char *cmd[static_size(sql)] = { 0 };
+	unsigned i, j, success = 0;
+	for (i = 0; i < 2; i++)
+		cmd[i] = sql_generate(sql[i], board_id);
+	long thread_count = db_retrieval(db, cmd[0]);
 	if (thread_count > MAX_ACTIVE_THREADS)
 	{
-		unsigned diff = abs(thread_count - MAX_ACTIVE_THREADS);
-		cmd[1] = sql_generate(sql[1], board_id, diff, MAX_ACTIVE_THREADS);
-		post_id = db_array_retrieval(db, cmd[1], diff);
-		for (i = 0; i < diff; i++)
+		long stale = thread_count - MAX_ACTIVE_THREADS;
+		long *post_id = db_array_retrieval(db, cmd[1], stale);
+		for (i = 0; i < stale; i++)
 		{
-			cmd[2] = sql_generate(sql[2], /* set expiration date */
-				board_id, post_id[i], tm + ARCHIVE_SEC, board_id, post_id[i]
-			);
-			success = !db_transaction(db, cmd[2]);
-			free(cmd[2]); cmd[2] = NULL; /* double-free */
+			/* archive and set expiration date */
+			cmd[2] = sql_generate(sql[2], board_id, post_id[i], time(NULL) + ARCHIVE_SEC);
+			cmd[3] = sql_generate(sql[3], board_id, post_id[i]);
+			for (j = 2; j < 4; j++)
+			{
+				success = !db_transaction(db, cmd[j]);
+				free(cmd[j]);
+				cmd[j] = NULL;
+			}
 		}
-		free(post_id);
+		free((!post_id) ? NULL : post_id);
 	}
-	cmd[3] = sql_generate(sql[3], board_id, tm); /* delete expired threads */
-	unsigned expire_count = db_retrieval(db, cmd[3]);
-	if (expire_count > 0)
+	for (i = 4; i < 6; i++)
+		cmd[i] = sql_generate(sql[i], board_id, time(NULL));
+	long expired_count = db_retrieval(db, cmd[4]);
+	if (expired_count)
 	{
-		cmd[4] = sql_generate(sql[4], board_id, tm);
-		post_id = db_array_retrieval(db, cmd[4], expire_count);
-		for (i = 0; i < expire_count; i++)
+		long *post_id = db_array_retrieval(db, cmd[5], expired_count);
+		for (i = 0; i < expired_count; i++)
 			success = db_post_delete(db, board_id, post_id[i]);
-		free(post_id);
+		free((!post_id) ? NULL : post_id);
 	}
 	for (i = 0; i < static_size(sql); i++)
-		free((!cmd[i]) ? NULL : cmd[i]);
+		free(cmd[i]);
 	return success;
 }
 
