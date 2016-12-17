@@ -35,6 +35,7 @@ struct parameters {
 		INDEX_MODE,
 		THREAD_MODE,
 		ARCHIVE_MODE,
+		ARCHIVE_VIEWER,
 		PEEK_MODE,
 		NOT_FOUND,
 		REDIRECT
@@ -248,13 +249,90 @@ char *format_comment(char **loc)
 	return str;
 }
 
+char *post_digest(sqlite3 *db, const char *board_id, const long id, unsigned len)
+{
+	/* returns post preview
+	 * non-zero length returns truncated plaintext
+	 */
+	static const char *sql =
+		"SELECT * FROM posts WHERE board_id = \"%s\" AND id = %ld;";
+	char *cmd = sql_generate(sql, board_id, id);
+	char *dest = NULL;
+	struct resource res;
+	if (db_resource_fetch(db, &res, cmd))
+	{
+		struct post *p = &res.arr[0];
+		unsigned i;
+		if (len) /* truncated preview */
+		{
+			char *src = (!p->subject) ? p->comment : p->subject;
+			dest = (char *) calloc(strlen(src) + 1, sizeof(char));
+			for (i = 0; src[i] && utf8_charcount(dest) < len; i++)
+				dest[i] = src[i];
+		}
+		else /* formatted rich text */
+		{
+			char *subj = (!p->subject) ? NULL : sql_generate("<b>%s</b>: ", p->subject);
+			dest = (!subj) ? strdup(p->comment) : sql_generate("%s%s", subj, p->comment);
+			free(subj);
+		}
+	}
+	db_resource_free(&res);
+	free(cmd);
+	return dest;
+}
+
+
+char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *list)
+{
+	/* generate short page title
+	 * not thread safe, returns pointer to static buffer
+	 */
+	static const char *const pat[] = {
+		[HOMEPAGE] = "%s - Home",
+		[INDEX_MODE] = "/%s/ - %s - Page %ld - %s",
+		[THREAD_MODE] =	"/%s/ - %s - %s - %s",
+		[ARCHIVE_VIEWER] = "/%s/ - Archive - %s",
+		[NOT_FOUND] = "%s - 404 Not Found",
+		[REDIRECT] = "%s - 301 Moved Permanently"
+	};
+	static char buf[1024];
+	char *digest; /* thread preview */
+	unsigned i = 0; /* board description */
+	if (params->board_id)
+	{
+		for (; i < list->count; i++)
+			if (!strcmp(list->arr[i].id, params->board_id))
+				break;
+	}
+	switch (params->mode)
+	{
+		case HOMEPAGE: sprintf(buf, pat[params->mode], IDENT_FULL); break;
+		case INDEX_MODE:
+				sprintf(buf, pat[params->mode], params->board_id, list->arr[i].name,
+				        params->page_no + 1, IDENT_FULL); break;
+		case PEEK_MODE:
+		case ARCHIVE_MODE:
+		case THREAD_MODE:
+				digest = post_digest(db, params->board_id, params->thread_id, 45);
+				sprintf(buf, pat[THREAD_MODE], params->board_id, digest,
+				        list->arr[i].name, IDENT_FULL);
+				free(digest); break;
+		case ARCHIVE_VIEWER:
+				sprintf(buf, pat[params->mode], params->board_id, IDENT_FULL); break;
+		case NOT_FOUND:
+		case REDIRECT: sprintf(buf, pat[params->mode], IDENT_FULL); break;
+	}
+	return buf;
+}
+
 void display_headers(const struct board *list, const char *board_id)
 {
 	/* top-most headers and rotating banners */
 	static const char *const headers[] = {
 		"<div id=\"boardtitle\"><b>/%s/</b> - %s</div>",
 		"<div class=\"header\">"
-			"<a href=\"/\"><img id=\"banner\" src=\"%s/%u.png\" alt=\"%s\">"
+			"<a href=\"/\"><img id=\"banner\" src=\"%s/%u.png\" title=\"%s\">"
 			"<div id=\"bannertext\">%s</div>"
 		"</a>"
 	};
@@ -263,7 +341,7 @@ void display_headers(const struct board *list, const char *board_id)
 		if (!strcmp(list->arr[i].id, board_id))
 			break;
 	fprintf(stdout, headers[0], board_id, list->arr[i].name);
-	fprintf(stdout, headers[1], BANNER_LOC, sel, IDENT_FULL, IDENT_FULL);
+	fprintf(stdout, headers[1], BANNER_LOC, sel, "Go to Homepage", IDENT_FULL);
 }
 
 void display_boardlist(const struct board *list, const char *title)
@@ -676,6 +754,7 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 		const char *board = query_search(&query, "board"),
 		           *thread = query_search(&query, "thread"),
 		           *page = query_search(&query, "page"),
+		           *archive = query_search(&query, "archive"),
 		           *peek = query_search(&query, "peek");
 		if (board)
 		{
@@ -715,6 +794,8 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 				else
 					params.mode = THREAD_MODE;
 			}
+			else if (atoi_s(archive))
+				params.mode = ARCHIVE_VIEWER;
 			else
 			{
 				params.mode = INDEX_MODE;
@@ -761,13 +842,15 @@ int main(void)
 	};
 	fprintf(stdout, "Status: %s\n\n",
 		    (!response[params.mode]) ? "200 OK" : response[params.mode]);
-	fprintf(stdout, global_template[0], IDENT_FULL); /* head */
+	/* head */
+	fprintf(stdout, global_template[0], generate_pagetitle(db, &params, &list));
 	switch (params.mode)
 	{
 		case HOMEPAGE: homepage_mode(&list); break;
 		case INDEX_MODE: index_mode(db, &list, &params); break;
 		case THREAD_MODE:
 		case ARCHIVE_MODE: thread_mode(db, &list, &params); break;
+		case ARCHIVE_VIEWER: break;
 		case PEEK_MODE: peek_mode(db, &params); break;
 		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
 		case REDIRECT:
@@ -780,7 +863,7 @@ int main(void)
 	fprintf(stdout, "<br/><br/>");
 	char *modes[] = {
 		"Homepage", "Index Mode", "Thread Mode", "Archive Mode",
-		"Peek Mode", "404 Not Found", "Redirect"
+		"Archive Viewer", "Peek Mode", "404 Not Found", "Redirect"
 	};
 	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>active/archived: %ld/%ld get string: \"%s\"",
 		modes[params.mode], params.board_id, params.thread_id, params.page_no, params.active_threads,
