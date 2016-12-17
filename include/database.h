@@ -72,6 +72,7 @@ long db_find_parent(sqlite3 *db, const char *board_id, const long id);
 int db_active_status(sqlite3 *db, const char *board_id, const long id);
 int db_archive_status(sqlite3 *db, const char *board_id, const long id);
 long db_total_posts(sqlite3 *db, const char *board_id, const long id);
+long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr);
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr);
 
 /* insertion */

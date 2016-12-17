@@ -142,7 +142,11 @@ int main(void)
 		cm.id = db_total_posts(db, cm.board_id, -1) + 1; /* assign post id */
 		char *parent_str = query_search(&query, "parent");
 		if (mode == THREAD_MODE)
+		{
 			cm.parent_id = cm.id;
+			if (db_user_threads(db, cm.board_id, cm.ip) > MAX_THREADS_PER_IP)
+				abort_now("<h2>You can only have %d active threads at a time.</h2>", MAX_THREADS_PER_IP);
+		}
 		else if (parent_str) /* REPLY_MODE */
 		{
 			cm.parent_id = atoi_s(parent_str);

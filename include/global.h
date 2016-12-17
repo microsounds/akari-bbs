@@ -58,7 +58,4 @@
 #define COMMENT_MAX_LENGTH 2000
 #define INSERT_MAX_RETRIES 1000
 
-/* deprecated xxx */
-#define POSTS_PER_PAGE 50
-
 #endif

@@ -37,9 +37,10 @@ const char *const sqlite3_err[UCHAR_MAX] = {
 };
 #undef enum_string
 
+
 char *sql_generate(const char *fmt, ...)
 {
-	/* auto-generate SQL statement using sprintf args
+	/* self-allocating sprintf
 	 * allocates space for integer and string arguments only
 	 */
 	va_list args;
@@ -243,6 +244,19 @@ long db_total_posts(sqlite3 *db, const char *board_id, const long id)
 	long post_count = db_retrieval(db, cmd);
 	free(cmd);
 	return post_count;
+}
+
+long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr)
+{
+	/* returns number of active threads from this IP */
+	static const char *sql =
+		"SELECT COUNT(*) FROM active_threads "
+			"INNER JOIN posts ON active_threads.post_id = posts.id "
+			"WHERE posts.board_id = \"%s\" AND posts.ip = \"%s\";";
+	char *cmd = sql_generate(sql, board_id, ip_addr);
+	long count = db_retrieval(db, cmd);
+	free(cmd);
+	return count;
 }
 
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
