@@ -290,6 +290,7 @@ char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *l
 		[INDEX_MODE] = "/%s/ - %s - Page %ld - %s",
 		[THREAD_MODE] =	"/%s/ - %s - %s - %s",
 		[ARCHIVE_VIEWER] = "/%s/ - Archive - %s",
+		[PEEK_MODE] =	"Post No.%ld on /%s/",
 		[NOT_FOUND] = "%s - 404 Not Found",
 		[REDIRECT] = "%s - 301 Moved Permanently"
 	};
@@ -308,7 +309,6 @@ char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *l
 		case INDEX_MODE:
 				sprintf(buf, pat[params->mode], params->board_id, list->arr[i].name,
 				        params->page_no + 1, IDENT_FULL); break;
-		case PEEK_MODE:
 		case ARCHIVE_MODE:
 		case THREAD_MODE:
 				digest = post_digest(db, params->board_id, params->thread_id, 45);
@@ -317,6 +317,8 @@ char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *l
 				free(digest); break;
 		case ARCHIVE_VIEWER:
 				sprintf(buf, pat[params->mode], params->board_id, IDENT_FULL); break;
+		case PEEK_MODE: sprintf(buf, pat[params->mode], params->thread_id,
+		                        params->board_id); break;
 		case NOT_FOUND:
 		case REDIRECT: sprintf(buf, pat[params->mode], IDENT_FULL); break;
 	}
@@ -523,8 +525,12 @@ void display_statistics(struct parameters *params, long replies, long thread_id)
 			"[<a href=\"%s?board=%s&thread=%ld\">Click here</a>] to view.",
 		"</div>"
 	};
-	/* functionally identical */
-	int mode = (params->mode == ARCHIVE_MODE) ? THREAD_MODE : params->mode;
+	int mode = params->mode;
+	switch (mode) /* functionally identical */
+	{
+		case ARCHIVE_MODE:
+		case PEEK_MODE: mode = THREAD_MODE;
+	}
 	const char *p1 = (replies == 1) ? "y" : "ies"; /* plurals */
 	const char *p2 = (replies == 1) ? "" : "s";
 	fprintf(stdout, ins[0]);
@@ -734,9 +740,28 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 
 void peek_mode(sqlite3 *db, struct parameters *params)
 {
-	/* return a single post for previewing */
-	/* can be pure html or some kind of json abomination */
-	return;
+	/* preview a single post
+	 * display reply count if parent post
+	 */
+	static const char *sql =
+		"SELECT * FROM posts WHERE board_id = \"%s\" AND parent_id = %ld;";
+	struct resource res;
+	char *cmd = sql_generate(sql, params->board_id, params->parent_id);
+	long total_posts = db_resource_fetch(db, &res, cmd);
+	unsigned i;
+	for (i = 0; i < total_posts; i++)
+	{
+		if (res.arr[i].id == params->thread_id)
+		{
+			struct resource post = { 1, &res.arr[i] };
+			display_resource(&post, params->mode, 0);
+			if (res.arr[i].id == res.arr[i].parent_id) /* OP */
+				display_statistics(params, total_posts - 1, 0);
+			break;
+		}
+	}
+	db_resource_free(&res);
+	free(cmd);
 }
 
 struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
@@ -850,7 +875,7 @@ int main(void)
 		case THREAD_MODE:
 		case ARCHIVE_MODE: thread_mode(db, &list, &params); break;
 		case ARCHIVE_VIEWER: break;
-		case PEEK_MODE: peek_mode(db, &params); break;
+		case PEEK_MODE: peek_mode(db, &params); goto abort;
 		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
 		case REDIRECT:
 			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", params.parent_id);
