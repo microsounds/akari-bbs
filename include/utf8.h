@@ -30,7 +30,9 @@ char *strstr_r(const char *haystack, const char *needle);
 
 /* UTF-8 routines */
 char *utf8_rewrite(char *str);
-unsigned utf8_charcount(const char *str);
+size_t utf8_charcount(const char *str);
+int utf8_sequence_length(const char c);
+char *utf8_truncate(const char *src, size_t n);
 
 /* input sanitation */
 char *strip_whitespace(char *str);

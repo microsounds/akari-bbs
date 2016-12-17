@@ -262,13 +262,10 @@ char *post_digest(sqlite3 *db, const char *board_id, const long id, unsigned len
 	if (db_resource_fetch(db, &res, cmd))
 	{
 		struct post *p = &res.arr[0];
-		unsigned i;
 		if (len) /* truncated preview */
 		{
 			char *src = (!p->subject) ? p->comment : p->subject;
-			dest = (char *) calloc(strlen(src) + 1, sizeof(char));
-			for (i = 0; src[i] && utf8_charcount(dest) < len; i++)
-				dest[i] = src[i];
+			dest = utf8_truncate(src, len);
 		}
 		else /* formatted rich text */
 		{
@@ -681,7 +678,9 @@ void index_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	long *index = db_array_retrieval(db, rank, thread_count);
 	long offset = params->page_no * THREADS_PER_PAGE;
 	long limit = min(offset + THREADS_PER_PAGE, thread_count);
-	if (offset > thread_count) /* sanity check */
+	if (!thread_count)
+		fprintf(stdout, "<h2>There aren't any threads yet.</h2>");
+	else if (offset > thread_count) /* sanity check */
 		fprintf(stdout, "<h2>There aren't that many threads here.</h2>");
 	else
 	{
@@ -805,7 +804,7 @@ struct parameters get_params(sqlite3 *db, const char *query, struct board *list)
 				long max_pages = params.active_threads / THREADS_PER_PAGE;
 				if (params.active_threads % THREADS_PER_PAGE)
 					max_pages++; /* ceiling */
-				if (params.page_no >= max_pages)
+				if (params.active_threads && params.page_no >= max_pages)
 					params.mode = NOT_FOUND;
 			}
 		}

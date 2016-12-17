@@ -162,13 +162,43 @@ char *utf8_rewrite(char *str)
 	return str;
 }
 
-unsigned utf8_charcount(const char *str)
+
+size_t utf8_charcount(const char *str)
 {
 	/* counts significant character bytes in UTF-8 strings */
 	unsigned count = 0;
 	while (*str++)
 		if ((*str & 0xC0) != 0x80) count++;
 	return count;
+}
+
+int utf8_sequence_length(const char c)
+{
+	/* returns sequence size of current UTF-8 byte
+	 * if continuation byte, return 0
+	 */
+	static const char byte[] = { 0x00, 0x80, 0xC2, 0xE0, 0xF0 };
+	static const int len[] = { 1, 0, 2, 3, 4 };
+	unsigned i;
+	for (i = 1; i < static_size(byte); i++)
+		if (c >= byte[i - 1] && c < byte[i])
+			break;
+	return len[i - 1];
+}
+
+char *utf8_truncate(const char *src, size_t n)
+{
+	/* truncate UTF-8 string up to n - 1 characters
+	 * return truncated string
+	 */
+	char *dest = (char *) calloc(strlen(src) + 1, sizeof(char));
+	unsigned i;
+	for (i = 0; src[i] && utf8_charcount(dest) < n; i++)
+		dest[i] = src[i];
+	if (n == utf8_charcount(dest)) /* limit reached */
+		while (utf8_sequence_length(dest[i]) > 1)
+			dest[i--] = '\0';
+	return dest;
 }
 
 char *strip_whitespace(char *str)
