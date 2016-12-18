@@ -19,6 +19,7 @@
 
 /* misc */
 #define static_size(p) (sizeof(p) / sizeof(*p))
+#define to_seconds(n) ((60 * 60 * 24) * n)
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 

@@ -12,7 +12,7 @@
 
 /*
  * database.c
- * database retrieval, state validation, insertion, and resource fetching
+ * database retrieval, validation, flood control, insertion, and resource fetching
  */
 
 /* SQLite3 error lookup */
@@ -246,6 +246,8 @@ long db_total_posts(sqlite3 *db, const char *board_id, const long id)
 	return post_count;
 }
 
+#ifdef NDEBUG /* flood control */
+
 long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr)
 {
 	/* returns number of active threads from this IP */
@@ -257,6 +259,24 @@ long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr)
 	long count = db_retrieval(db, cmd);
 	free(cmd);
 	return count;
+}
+
+long db_duplicate_post(sqlite3 *db, const char *text, const char *ip_addr)
+{
+	/* determines if user is spamming with identical text */
+	static const char *sql =
+		"SELECT * FROM posts WHERE time > %ld AND ip = \"%s\";";
+	const long time_frame = time(NULL) - IDENTICAL_POST_SEC;
+	struct resource res;
+	char *cmd = sql_generate(sql, time_frame, ip_addr);
+	unsigned posts = db_resource_fetch(db, &res, cmd);
+	free(cmd);
+	unsigned i, found = 0;
+	for (i = 0; i < posts; i++)
+		if (!strcmp(res.arr[i].comment, text))
+			found++;
+	db_resource_free(&res);
+	return found;
 }
 
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
@@ -284,6 +304,8 @@ long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
 	db_resource_free(&res);
 	return COOLDOWN_SEC - timer;
 }
+
+#endif
 
 int db_post_insert(sqlite3 *db, struct post *cm)
 {
@@ -409,6 +431,8 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		"SELECT post_id FROM archived_threads WHERE board_id = \"%s\" AND expiry < %ld;"
 	};
 	char *cmd[static_size(sql)] = { 0 };
+	time_t now = time(NULL);
+	time_t expire_time = now + to_seconds(DAYS_TO_ARCHIVE);
 	unsigned i, j, success = 0;
 	for (i = 0; i < 2; i++)
 		cmd[i] = sql_generate(sql[i], board_id);
@@ -420,7 +444,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		for (i = 0; i < stale; i++)
 		{
 			/* archive and set expiration date */
-			cmd[2] = sql_generate(sql[2], board_id, post_id[i], time(NULL) + ARCHIVE_SEC);
+			cmd[2] = sql_generate(sql[2], board_id, post_id[i], expire_time);
 			cmd[3] = sql_generate(sql[3], board_id, post_id[i]);
 			for (j = 2; j < 4; j++)
 			{
@@ -432,7 +456,7 @@ int db_archive_oldest(sqlite3 *db, const char *board_id)
 		free((!post_id) ? NULL : post_id);
 	}
 	for (i = 4; i < 6; i++)
-		cmd[i] = sql_generate(sql[i], board_id, time(NULL));
+		cmd[i] = sql_generate(sql[i], board_id, now);
 	long expired_count = db_retrieval(db, cmd[4]);
 	if (expired_count)
 	{

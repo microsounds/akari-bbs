@@ -101,7 +101,8 @@ int main(void)
 		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
 		unsigned timer = db_cooldown_timer(db, cm.ip); /* post cooldown */
 		if (timer > 0)
-			abort_now("<h2>Please wait %u more second%s.</h2>", timer, (timer > 1) ? "s" : "");
+			abort_now("<h2>Please wait %u more second%s.</h2>",
+			          timer, (timer > 1) ? "s" : "");
 
 		cm.board_id = query_search(&query, "board"); /* get board_id */
 		if (cm.board_id)
@@ -145,7 +146,8 @@ int main(void)
 		{
 			cm.parent_id = cm.id;
 			if (db_user_threads(db, cm.board_id, cm.ip) > MAX_THREADS_PER_IP)
-				abort_now("<h2>You can only have %d active threads at a time.</h2>", MAX_THREADS_PER_IP);
+				abort_now("<h2>You can only have %d active threads at a time.</h2>",
+				          MAX_THREADS_PER_IP);
 		}
 		else if (parent_str) /* REPLY_MODE */
 		{
@@ -198,6 +200,8 @@ int main(void)
 		for (i = 0; i < static_size(field); i++)
 			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
 
+		if (db_duplicate_post(db, cm.comment, cm.ip))
+			abort_now("<h2>Wait a few minutes before making an identical post.</h2>");
 		if (spam_filter(cm.comment)) /* spammy behavior */
 			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
 

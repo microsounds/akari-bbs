@@ -66,14 +66,22 @@ void thread_redirect(const char *board_id, long parent_id, long post_id);
 long db_retrieval(sqlite3 *db, const char *sql);
 long *db_array_retrieval(sqlite3 *db, const char *sql, unsigned n);
 
-/* state validation */
+/* validation */
 unsigned db_status_flags(sqlite3 *db, const char *board_id, const long id);
 long db_find_parent(sqlite3 *db, const char *board_id, const long id);
 int db_active_status(sqlite3 *db, const char *board_id, const long id);
 int db_archive_status(sqlite3 *db, const char *board_id, const long id);
 long db_total_posts(sqlite3 *db, const char *board_id, const long id);
+
+#ifdef NDEBUG /* flood control */
 long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr);
+long db_duplicate_post(sqlite3 *db, const char *text, const char *ip_addr);
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr);
+#else
+#define db_user_threads(db, board_id, ip_addr) 0
+#define db_duplicate_post(db, text, ip_addr) 0
+#define db_cooldown_timer(db, ip_addr) 0
+#endif
 
 /* insertion */
 int db_post_insert(sqlite3 *db, struct post *cm);

@@ -45,11 +45,12 @@
 #define MAX_ACTIVE_THREADS 150
 #define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15
-#define ARCHIVE_SEC ((60 * 60 * 24) * 30) /* 1 mo */
+#define DAYS_TO_ARCHIVE 30
 
 /* user constants */
 #define DEFAULT_NAME "Anonymous"
 #define COOLDOWN_SEC 30
+#define IDENTICAL_POST_SEC 150
 #define MAX_THREADS_PER_IP 5
 #define POST_MAX_PAYLOAD 10000
 #define NAME_MAX_LENGTH 75
