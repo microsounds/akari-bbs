@@ -21,12 +21,8 @@
 		stress test thread cycling
 		stress test thread pruning and archival
 		enquote_comment is corrupting strings at random
-		archived thread viewer
-		peek mode
 		rewrite enquote_comment to get correct thread and link
-
-	>>12345
-	if requested ID is not found in the thread, search through /api/12345 and display that
+		if requested ID is not found in the thread, search through /api/12345 and display that
  */
 
 struct parameters {
@@ -317,8 +313,8 @@ char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *l
 				free(digest); break;
 		case ARCHIVE_VIEWER:
 				sprintf(buf, pat[params->mode], params->board_id, IDENT_FULL); break;
-		case PEEK_MODE: sprintf(buf, pat[params->mode], params->thread_id,
-		                        params->board_id); break;
+		case PEEK_MODE:
+				sprintf(buf, pat[params->mode], params->thread_id, params->board_id); break;
 		case NOT_FOUND:
 		case REDIRECT: sprintf(buf, pat[params->mode], IDENT_FULL); break;
 	}
@@ -393,7 +389,9 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 			"<div class=\"formtitle indexmode\">[!!] Index Mode: Start a New Thread!</div>",
 			"<div class=\"formtitle threadmode\">[!!] Thread Mode: Reply to Thread No.%ld</div>",
 			"<div class=\"formtitle archivemode\">[!!] Viewing Archived Thread No.%ld</div>"
-			"<h2>You cannot reply to this thread anymore.</h2>",
+				"<h2>You cannot reply to this thread anymore.</h2>",
+			"<div class=\"formtitle archivemode\">[!!] Viewing Archived Thread List</div>"
+				"<h2>%ld threads archived in the last %d days.</h2>",
 		/* postform input fields */
 			"<tr>"
 				"<td><div class=\"desc\">Name</div></td>"
@@ -444,11 +442,13 @@ void display_postform(int mode, const char *board_id, const long thread_id)
 			fprintf(stdout, postform[3], thread_id); break;
 		case ARCHIVE_MODE:
 			fprintf(stdout, postform[4], thread_id); goto end;
+		case ARCHIVE_VIEWER: /* thread_id is expired thread count */
+			fprintf(stdout, postform[5], thread_id, DAYS_TO_ARCHIVE); goto end;
 	}
 	/* postform body and character limits */
-	fprintf(stdout, postform[5], NAME_MAX_LENGTH, DEFAULT_NAME,
+	fprintf(stdout, postform[6], NAME_MAX_LENGTH, DEFAULT_NAME,
 		OPTIONS_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH, COMMENT_MAX_LENGTH);
-	end: fprintf(stdout, postform[6]);
+	end: fprintf(stdout, postform[7]);
 }
 
 void display_navigation(const struct parameters *params, int bottom)
@@ -470,6 +470,8 @@ void display_navigation(const struct parameters *params, int bottom)
 			"[<a href=\"%s?board=%s\">%u</a>] ",
 			"[<a href=\"%s?board=%s&page=%u\">%u</a>] ",
 			"Page %u of %u",
+		/* misc buttons */
+			"[<a href=\"%s?board=%s&archive=1\">Archive</a>] ",
 		"</span>"
 	};
 	/* functionally identical */
@@ -477,9 +479,10 @@ void display_navigation(const struct parameters *params, int bottom)
 	unsigned i;
 	for (i = 0; i < 2; i++)
 		fprintf(stdout, navi[i]);
-	if (mode == THREAD_MODE) /* return button */
+	if (mode == THREAD_MODE || mode == ARCHIVE_VIEWER) /* return */
 		fprintf(stdout, navi[4], BOARD_SCRIPT, params->board_id);
 	fprintf(stdout, (!bottom) ? navi[2] : navi[3]); /* top / bottom */
+	fprintf(stdout, navi[13], BOARD_SCRIPT, params->board_id); /* catalog */
 	unsigned pages = params->active_threads / THREADS_PER_PAGE;
 	if (params->active_threads % THREADS_PER_PAGE)
 		pages++; /* ceiling */
@@ -508,7 +511,7 @@ void display_navigation(const struct parameters *params, int bottom)
 	}
 	else if (mode == THREAD_MODE) /* thread info */
 		fprintf(stdout, navi[5], params->thread_id);
-	fprintf(stdout, "%s%s", navi[13], navi[0]);
+	fprintf(stdout, "%s%s", navi[14], navi[0]);
 }
 
 void display_statistics(struct parameters *params, long replies, long thread_id)
@@ -738,6 +741,99 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 	free(cmd);
 }
 
+void archive_viewer(sqlite3 *db, struct board *list, struct parameters *params)
+{
+	/* display table of archived threads
+	 * reformat fields as needed
+	 */
+	static const char *const column[] = {
+		"No.", "Name", "Digest", "Replies", "Expires", "Link"
+	};
+	static const char *const color[] = { "d0", "d1" };
+	static const char *const table[] = {
+		/* heading */
+		"<table class=\"digest center\" cellspacing=\"0\">"
+		"<tr>",
+			"<td><div class=\"desc hori\">%s</div></td>",
+		"</tr>",
+		/* entry */
+		"<tr class=\"%s\">"
+			"<td><center><span class=\"pId\">%ld</span></center></td>"
+			"<td><center><span class=\"pName\">%s</span>%s</center></td>"
+			"<td>%s</td>"
+			"<td><center>%ld</center></td>"
+			"<td><center>%s</center></td>"
+			"<td><center><span class=\"navi controls\">"
+				"[<a href=\"%s?board=%s&thread=%ld\">View</a>]"
+			"</center></td>"
+		"</tr>",
+		"</table>"
+	};
+	static const char *sql[] = {
+		"SELECT post_id FROM archived_threads WHERE "
+			"board_id = \"%s\" ORDER BY expiry DESC;",
+		"SELECT * FROM posts WHERE board_id = \"%s\" "
+			"AND parent_id = %ld ORDER by id ASC;",
+		"SELECT expiry from archived_threads WHERE "
+			"board_id = \"%s\" AND post_id = %ld;"
+	};
+	display_headers(list, params->board_id);
+	display_boardlist(list, NULL);
+	display_postform(params->mode, params->board_id, params->archived_threads);
+	display_navigation(params, 0);
+	long archived_count = params->archived_threads;
+	char *archive = sql_generate(sql[0], params->board_id);
+	long *index = db_array_retrieval(db, archive, archived_count);
+	if (!archived_count)
+		fprintf(stdout, "<h2>No threads have been pruned yet.</h2>");
+	else
+	{
+		unsigned i, j, sel = 0;
+		for (i = 0; i < 3; i++) /* heading */
+		{
+			if (i == 1)
+				for (j = 0; j < static_size(column); j++)
+					fprintf(stdout, table[i], column[j]);
+			else
+				fprintf(stdout, table[i]);
+		}
+		for (i = 0; i < archived_count; i++)
+		{
+			struct resource res; /* fetch thread */
+			char *current = sql_generate(sql[1], params->board_id, index[i]);
+			long replies = db_resource_fetch(db, &res, current) - 1;
+			free(current);
+			struct post *p = &res.arr[0]; /* reformat info */
+			char *pat_a = " <span class=\"pTrip\">%s</span>";
+			char *name = (!p->name) ? DEFAULT_NAME : p->name;
+			char *trip = (!p->trip) ? NULL : sql_generate(pat_a, p->trip);
+			char *subj = (!p->subject) ? NULL : utf8_truncate(p->subject, 30);
+			char *comm =  utf8_truncate(p->comment, 40);
+			char *pat_b = "<span class=\"pSubject\">%s:</span> %s";
+			char *digest = (!subj) ? strdup(comm) : sql_generate(pat_b, subj, comm);
+			free(subj); free(comm);
+
+			/* get expire time */
+			char *expire = sql_generate(sql[2], params->board_id, index[i]);
+			time_t expire_time = db_retrieval(db, expire);
+			free(expire);
+			char time_str[100]; /* human readable date */
+			struct tm *ts = localtime(&expire_time);
+			strftime(time_str, 100, "%a, %m/%d/%y %I:%M:%S %p", ts);
+
+			fprintf(stdout, table[3], color[sel], p->parent_id, name, (!trip) ? "" : trip,
+			        digest, replies, time_str, BOARD_SCRIPT, p->board_id, p->parent_id);
+			free(trip); free(digest);
+			db_resource_free(&res);
+			sel = !sel;
+		}
+		fprintf(stdout, table[4]);
+	}
+	free(archive);
+	free((!index) ? NULL : index);
+	display_navigation(params, 1);
+}
+
 void peek_mode(sqlite3 *db, struct parameters *params)
 {
 	/* preview a single post
@@ -874,7 +970,7 @@ int main(void)
 		case INDEX_MODE: index_mode(db, &list, &params); break;
 		case THREAD_MODE:
 		case ARCHIVE_MODE: thread_mode(db, &list, &params); break;
-		case ARCHIVE_VIEWER: break;
+		case ARCHIVE_VIEWER: archive_viewer(db, &list, &params); break;
 		case PEEK_MODE: peek_mode(db, &params); goto abort;
 		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
 		case REDIRECT:

@@ -196,7 +196,7 @@ char *utf8_truncate(const char *src, size_t n)
 	for (i = 0; src[i] && utf8_charcount(dest) < n; i++)
 		dest[i] = src[i];
 	if (n == utf8_charcount(dest)) /* limit reached */
-		while (utf8_sequence_length(dest[i]) > 1)
+		while (i > 0 && utf8_sequence_length(dest[i]) > 1)
 			dest[i--] = '\0';
 	return dest;
 }

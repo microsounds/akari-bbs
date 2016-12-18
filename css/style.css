@@ -164,6 +164,13 @@ a > #bannertext
 	background-color: #EEE;
 }
 
+/* archive viewer table */
+
+.hori { width: 100%; background-color: #DDD; }
+.digest { width: 90%;}
+.d0 td { padding: 2px; border: 1px solid #CCC; background-color: #E2E6F5; }
+.d1 td { padding: 2px; border: 1px solid #CCC; background-color: #C7ADEF; }
+
 /* help messages */
 
 .help { padding:1px; font-size: 11px; }
