@@ -40,18 +40,20 @@
 #define BANNER_COUNT 625
 #define BANNER_LOC "/img/banner"
 
-/* thread constants */
+/* board settings */
+#define DEFAULT_NAME "Anonymous"
 #define THREAD_BUMP_LIMIT 350
 #define MAX_ACTIVE_THREADS 150
 #define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15
 #define DAYS_TO_ARCHIVE 30
 
-/* user constants */
-#define DEFAULT_NAME "Anonymous"
+/* user flooding limits */
 #define COOLDOWN_SEC 30
 #define IDENTICAL_POST_SEC 150
 #define MAX_THREADS_PER_IP 5
+
+/* field submission limits */
 #define POST_MAX_PAYLOAD 10000
 #define NAME_MAX_LENGTH 75
 #define OPTIONS_MAX_LENGTH 30

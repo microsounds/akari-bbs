@@ -1,5 +1,9 @@
 # akari-bbs — lightweight messageboard system
+![powered] ![revision] ![database] ![license]
+
 akari-bbs is an **_in-development_** lightweight messageboard system written in C!
+
+You can see a running instance of akari-bbs: [here!](http://akaribbs.mooo.com/)
 
 ## thread-mode branch
 **Latest working build is [master](https://github.com/microsounds/akari-bbs/tree/master) branch.**
@@ -7,45 +11,40 @@ akari-bbs is an **_in-development_** lightweight messageboard system written in 
 
 ## Features
 ### No Registration
-Like a traditional Futaba-like, no accounts are required to post. Identity persistence is _optional_.
-
-### Thread Persistence
-Each board may host up to 150 active threads at once.
-
-Replying to a thread bumps it to the front page. Old discussion and stale threads are slowly pruned off the board as new threads are made.
-
-A hard limit on thread bumps keeps discussion fresh and ensures high content turnover.
+Like a traditional Futaba-like messageboard system, no registration is required to participate.
 
 ### Identity
-Users can post anonymously or with a username.
-You can also maintain a persistent identity using a tripcode.
+Users can post anonymously, or they can maintain a persistent identity with a tripcode.
 
 A tripcode is a static DES hash appended to your name. Just enter a # and a password after your name.
-
 > `Akari#example` becomes _Akari !KtW6XcghiY_
+
+Tripcodes can be considered a passive form of "user registration".
+
+### Aggressive Content Turnover
+Each board may host a limited number of active threads at once.
+
+Replying to a thread bumps it to the front page, sinking all other threads by 1.
+A hard limit on bumping ensures that long and stale threads cannot be bumped back to the front page.
+Threads at the bottom of the index are slowly pruned off the board as new threads are created.
+Pruned threads are archived for a limited time before being deleted.
+
+This algorithm ensures high content turnover and ensures that all discussion is ephemeral in nature.
 
 ### Implemented Features
 * Anonymous posting
+  * Registration-free identity persistence is available.
+* Tripcodes (DES crypt(3) a.k.a Futaba-style)
+* Chronological order threaded discussion
+* Self-contained discussion boards for different topics
+* Aggressive content turnover algorithm
 * Blockquotes and post quoting
-* Special markup in order of precedence:
-  * **[spoiler]** tags for concealing spoiler text
-  * **[code]** blocks for preserving whitespace in code snippets
-    * You can nest [code] tags to highlight specific parts of your code.
-* Cooldown timer
+* Formatting markup for spoilers and code blocks
 * UTF-8 aware input sanitation
-* Usernames
-* Tripcodes (DES crypt-based a.k.a Futaba-style)
-  * Enter your password in the form "name#password" to generate a tripcode.
-  * Tripcodes are a simple way to provide persistent identity without registration.
-
-Server-side page response time currently clocks in at 1.0ms. (1/1000th of a second!)
-
-You can see a running instance of akari-bbs: [here!](http://akaribbs.mooo.com/)
+* User flooding deterrance
 
 ### Warning
 This project is in alpha state and is not feature complete. Functionality may change at any time.
-
-Backwards-compatibility for databases created by older versions of this software are not guaranteed.
 
 ## Required
 * lighttpd
@@ -74,4 +73,10 @@ akari-bbs is free software, released under the terms of the GNU General Public L
 
 See [`include/global.h`](include/global.h) for full copyright or [`LICENSE`](LICENSE) for license information.
 
-![Akari](http://i.imgur.com/fOCh5UZ.gif)
+![akarin~]
+
+[powered]: https://img.shields.io/badge/powered_by-akari--bbs-646464.svg?colorA=DC8B9A&style=flat-square
+[revision]: https://img.shields.io/badge/revision-14-646464.svg?colorA=D5B2FE&style=flat-square
+[database]: https://img.shields.io/badge/database-v4-646464.svg?colorA=B3AFFF&style=flat-square
+[license]: https://img.shields.io/badge/license-GPLv3-646464.svg?colorA=AFD3FF&style=flat-square
+[akarin~]: http://i.imgur.com/fOCh5UZ.gif

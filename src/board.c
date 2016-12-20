@@ -22,6 +22,7 @@
 		stress test thread pruning and archival
 		enquote_comment is corrupting strings at random
 		rewrite enquote_comment to get correct thread and link
+		search.cgi feature, search all and posts
 		if requested ID is not found in the thread, search through /api/12345 and display that
  */
 
@@ -247,9 +248,7 @@ char *format_comment(char **loc)
 
 char *post_digest(sqlite3 *db, const char *board_id, const long id, unsigned len)
 {
-	/* returns post preview
-	 * non-zero length returns truncated plaintext
-	 */
+	/* returns post preview up to len characters */
 	static const char *sql =
 		"SELECT * FROM posts WHERE board_id = \"%s\" AND id = %ld;";
 	char *cmd = sql_generate(sql, board_id, id);
@@ -258,23 +257,13 @@ char *post_digest(sqlite3 *db, const char *board_id, const long id, unsigned len
 	if (db_resource_fetch(db, &res, cmd))
 	{
 		struct post *p = &res.arr[0];
-		if (len) /* truncated preview */
-		{
-			char *src = (!p->subject) ? p->comment : p->subject;
-			dest = utf8_truncate(src, len);
-		}
-		else /* formatted rich text */
-		{
-			char *subj = (!p->subject) ? NULL : sql_generate("<b>%s</b>: ", p->subject);
-			dest = (!subj) ? strdup(p->comment) : sql_generate("%s%s", subj, p->comment);
-			free(subj);
-		}
+		char *src = (!p->subject) ? p->comment : p->subject;
+		dest = utf8_truncate(src, len);
 	}
 	db_resource_free(&res);
 	free(cmd);
 	return dest;
 }
-
 
 char *generate_pagetitle(sqlite3 *db, struct parameters *params, struct board *list)
 {
@@ -804,12 +793,12 @@ void archive_viewer(sqlite3 *db, struct board *list, struct parameters *params)
 			long replies = db_resource_fetch(db, &res, current) - 1;
 			free(current);
 			struct post *p = &res.arr[0]; /* reformat info */
-			char *pat_a = " <span class=\"pTrip\">%s</span>";
+			static const char *pat_a = " <span class=\"pTrip\">%s</span>";
 			char *name = (!p->name) ? DEFAULT_NAME : p->name;
 			char *trip = (!p->trip) ? NULL : sql_generate(pat_a, p->trip);
 			char *subj = (!p->subject) ? NULL : utf8_truncate(p->subject, 30);
-			char *comm =  utf8_truncate(p->comment, 40);
-			char *pat_b = "<span class=\"pSubject\">%s:</span> %s";
+			char *comm = utf8_truncate(p->comment, 40);
+			static const char *pat_b = "<span class=\"pSubject\">%s:</span> %s";
 			char *digest = (!subj) ? strdup(comm) : sql_generate(pat_b, subj, comm);
 			free(subj); free(comm);
 

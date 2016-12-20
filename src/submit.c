@@ -63,9 +63,12 @@ static void abort_now(const char *fmt, ...)
 int main(void)
 {
 	int err;
+	FILE *fp;
 	sqlite3 *db;
 	fprintf(stdout, "Content-type: text/html\n\n");
 	fprintf(stdout, html[0], IDENT_FULL, IDENT, REVISION, DB_VER);
+	if ((fp = fopen("POSTING_DISABLED", "r"))) /* maintenance lockout */
+		abort_now("<h2>Posting disabled, check back later.</h2>");
 	if ((err = sqlite3_open_v2(DATABASE_LOC, &db, 2, NULL))) /* read/write mode */
 		abort_now("<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
 
@@ -200,7 +203,7 @@ int main(void)
 		for (i = 0; i < static_size(field); i++)
 			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
 
-		if (db_duplicate_post(db, cm.comment, cm.ip))
+		if (db_duplicate_post(db, cm.comment, cm.ip)) /* flooding */
 			abort_now("<h2>Wait a few minutes before making an identical post.</h2>");
 		if (spam_filter(cm.comment)) /* spammy behavior */
 			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
