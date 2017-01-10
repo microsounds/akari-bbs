@@ -201,6 +201,31 @@ char *utf8_truncate(const char *src, size_t n)
 	return dest;
 }
 
+const char *time_human(size_t sec)
+{
+	/* takes time in seconds and returns pointer to
+	 * static buffer containing human readable time estimate
+	 * not thread safe
+	 */
+	static char buf[1024];
+	static const size_t lmt[] = {
+		60,
+		60 * 60,
+		60 * 60 * 24,
+		60 * 60 * 24 * 30,
+		60 * 60 * 24 * 30 * 12
+	};
+	static const char *const units[] = {
+		"second", "minute", "hour", "day", "month", "year"
+	};
+	unsigned i;
+	for (i = 0; i < static_size(units); i++)
+		if (sec <= lmt[i]) break;
+	long time = (!i) ? sec : sec % lmt[i] / lmt[i - 1];
+	sprintf(buf, "%ld %s%s", time, units[i], (time == 1) ? "" : "s");
+	return buf;
+}
+
 char *strip_whitespace(char *str)
 {
 	/* strips excessive whitespace

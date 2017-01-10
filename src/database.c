@@ -263,33 +263,43 @@ long db_user_threads(sqlite3 *db, const char *board_id, const char *ip_addr)
 
 long db_duplicate_post(sqlite3 *db, const char *text, const char *ip_addr)
 {
-	/* determines if user is spamming with identical text */
-	static const char *sql =
-		"SELECT * FROM posts WHERE time > %ld AND ip = \"%s\";";
-	const long time_frame = time(NULL) - IDENTICAL_POST_SEC;
+	/* determines elapsed seconds since user made an identical post
+	 * identical post detection is global across all boards
+	 */
+	const long current_time = time(NULL);
+	const long time_frame = current_time - IDENTICAL_POST_SEC;
+	long timer = IDENTICAL_POST_SEC;
 	struct resource res;
+	static const char *sql =
+		"SELECT * FROM posts WHERE time > %ld AND ip = \"%s\" "
+			"ORDER BY time DESC;";
 	char *cmd = sql_generate(sql, time_frame, ip_addr);
 	unsigned posts = db_resource_fetch(db, &res, cmd);
 	free(cmd);
-	unsigned i, found = 0;
+	unsigned i;
 	for (i = 0; i < posts; i++)
+	{
 		if (!strcmp(res.arr[i].comment, text))
-			found++;
+		{
+			timer = current_time - res.arr[i].time;
+			break;
+		}
+	}
 	db_resource_free(&res);
-	return found;
+	return IDENTICAL_POST_SEC - timer;
 }
 
 long db_cooldown_timer(sqlite3 *db, const char *ip_addr)
 {
-	/* calculates cooldown timer expressed in seconds remaining
+	/* determines elapsed seconds since last user transaction
 	 * cooldown timer is global across all boards
 	 */
 	const long current_time = time(NULL);
-	const long delta = current_time - COOLDOWN_SEC;
+	const long time_frame = current_time - COOLDOWN_SEC;
 	long timer = COOLDOWN_SEC;
 	struct resource res; /* fetch newest posts only */
 	static const char *sql = "SELECT * FROM posts WHERE time > %ld;";
-	char *cmd = sql_generate(sql, delta);
+	char *cmd = sql_generate(sql, time_frame);
 	db_resource_fetch(db, &res, cmd);
 	free(cmd);
 	int i;

@@ -50,7 +50,7 @@
 
 /* user flooding limits */
 #define COOLDOWN_SEC 30
-#define IDENTICAL_POST_SEC 150
+#define IDENTICAL_POST_SEC 300
 #define MAX_THREADS_PER_IP 5
 
 /* field submission limits */

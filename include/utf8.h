@@ -35,6 +35,7 @@ int utf8_sequence_length(const char c);
 char *utf8_truncate(const char *src, size_t n);
 
 /* input sanitation */
+const char *time_human(size_t sec);
 char *strip_whitespace(char *str);
 char *xss_sanitize(char **loc);
 int spam_filter(const char *str);

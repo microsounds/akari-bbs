@@ -29,6 +29,7 @@ static const char *const html[] = {
 		"<title>Submit - %s</title>"
 		"<meta charset=\"UTF-8\" />"
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+		"<meta name=\"theme-color\" content=\"#DC8B9A\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"img/favicon.ico\" />"
 		"<link rel=\"stylesheet\" type=\"text/css\" href=\"css/style.css\" />"
 	"</head>"
@@ -101,12 +102,10 @@ int main(void)
 	{
 		struct post cm = { 0 }; /* compose a new post */
 
+		unsigned timer;
 		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
-		unsigned timer = db_cooldown_timer(db, cm.ip); /* post cooldown */
-		if (timer > 0)
-			abort_now("<h2>Please wait %u more second%s.</h2>",
-			          timer, (timer > 1) ? "s" : "");
-
+		if ((timer = db_cooldown_timer(db, cm.ip))) /* post cooldown */
+			abort_now("<h2>Please wait %s before posting again.</h2>", time_human(timer));
 		cm.board_id = query_search(&query, "board"); /* get board_id */
 		if (cm.board_id)
 		{
@@ -203,8 +202,8 @@ int main(void)
 		for (i = 0; i < static_size(field); i++)
 			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
 
-		if (db_duplicate_post(db, cm.comment, cm.ip)) /* flooding */
-			abort_now("<h2>Wait a few minutes before making an identical post.</h2>");
+		if ((timer = db_duplicate_post(db, cm.comment, cm.ip))) /* flooding */
+			abort_now("<h2>Wait %s before making an identical post.</h2>", time_human(timer));
 		if (spam_filter(cm.comment)) /* spammy behavior */
 			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
 
