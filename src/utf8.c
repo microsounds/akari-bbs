@@ -204,10 +204,10 @@ char *utf8_truncate(const char *src, size_t n)
 const char *time_human(size_t sec)
 {
 	/* takes time in seconds and returns pointer to
-	 * static buffer containing human readable time estimate
+	 * static buffer containing human readable time string
 	 * not thread safe
 	 */
-	static char buf[1024];
+	static char buf[1024] = { 0 };
 	static const size_t lmt[] = {
 		60,
 		60 * 60,
@@ -218,11 +218,25 @@ const char *time_human(size_t sec)
 	static const char *const units[] = {
 		"second", "minute", "hour", "day", "month", "year"
 	};
-	unsigned i;
+	unsigned i, iters = 0, idx = 0;
 	for (i = 0; i < static_size(units); i++)
-		if (sec <= lmt[i]) break;
-	long time = (!i) ? sec : sec % lmt[i] / lmt[i - 1];
-	sprintf(buf, "%ld %s%s", time, units[i], (time == 1) ? "" : "s");
+		if (sec < lmt[i]) break;
+	do
+	{
+		long time = (!i) ? sec % lmt[0] : sec % lmt[i] / lmt[i - 1];
+		if (time || (!i && !iters)) /* edge case: 0 seconds */
+		{
+			char ins[100];
+			sprintf(ins, "%ld %s%s, ", time, units[i], (time == 1) ? "" : "s");
+			unsigned len = strlen(ins);
+			strcpy(&buf[idx], ins);
+			idx += len;
+			iters++;
+		}
+	} while (i--);
+	idx = strlen(buf) - 1;
+	while (buf[idx] == ' ' || buf[idx] == ',')
+		buf[idx--] = '\0';
 	return buf;
 }
 
