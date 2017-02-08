@@ -182,17 +182,21 @@ int main(void)
 		cm.comment = query_search(&query, "comment"); /* comment body */
 		if (!cm.comment)
 			abort_now("<h2>You cannot post a blank comment.</h2>");
-		char *field[] = { cm.name, cm.subject, cm.comment };
+
+		/* three star pointer needed to assign realloc'd char arrays
+		 * back to their original post container
+		 */
+		char **field[] = { &cm.name, &cm.subject, &cm.comment };
 		static const unsigned limit[] = {
 			NAME_MAX_LENGTH, SUBJECT_MAX_LENGTH, COMMENT_MAX_LENGTH
 		};
 		unsigned i;
 		for (i = 0; i < static_size(field); i++)
 		{
-			if (field[i])
+			if (*field[i])
 			{
-				strip_whitespace(utf8_rewrite(field[i])); /* UTF-8 */
-				if (utf8_charcount(field[i]) > limit[i]) /* length limit */
+				strip_whitespace(utf8_rewrite(*field[i])); /* UTF-8 */
+				if (utf8_charcount(*field[i]) > limit[i]) /* length limit */
 					abort_now("<h2>One or more fields are too long.</h2>");
 			}
 		}
@@ -200,7 +204,7 @@ int main(void)
 		cm.trip = (!cm.name) ? NULL : tripcode_hash(tripcode_pass(&cm.name));
 
 		for (i = 0; i < static_size(field); i++)
-			if (field[i]) xss_sanitize(&field[i]); /* sanitize inputs */
+			if (*field[i]) xss_sanitize(field[i]); /* sanitize inputs */
 
 		if ((timer = db_duplicate_post(db, cm.comment, cm.ip))) /* flooding */
 			abort_now("<h2>Wait %s before making an identical post.</h2>", time_human(timer));

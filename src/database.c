@@ -146,7 +146,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 	 * assuming inputs are already validated
 	 * if post_id > parent_id, append as a permalink
 	 */
-	const char *redir = "<meta http-equiv=\"refresh\" content=\"1; url=%s\">";
+	const char *redir = "<meta http-equiv=\"refresh\" content=\"%ld; url=%s\">";
 	const char *redir_link =
 		"<div class=\"navi controls\">"
 			"If you are not redirected shortly, please [<a href=\"%s\">click here</a>]."
@@ -162,7 +162,7 @@ void thread_redirect(const char *board_id, long parent_id, long post_id)
 		buf[0] = (char *) realloc(buf[0], sizeof(char) * size + 1);
 		strcat(buf[0], buf[1]);
 	}
-	buf[2] = sql_generate(redir, buf[0]);
+	buf[2] = sql_generate(redir, REDIRECT_SEC, buf[0]);
 	buf[3] = sql_generate(redir_link, buf[0]);
 	fprintf(stdout, "%s%s", buf[2], buf[3]);
 	unsigned i;

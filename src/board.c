@@ -18,10 +18,8 @@
 
 /*
 	todo:
-		stress test thread cycling
-		stress test thread pruning and archival
-		enquote_comment is corrupting strings at random
 		rewrite enquote_comment to get correct thread and link
+
 		search.cgi feature, search all and posts
 		if requested ID is not found in the thread, search through /post/12345 and display that
 		push post numbers to user's localStorage so they can have (You)'s

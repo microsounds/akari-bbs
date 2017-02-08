@@ -47,6 +47,7 @@
 #define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15
 #define DAYS_TO_ARCHIVE 30
+#define REDIRECT_SEC 1
 
 /* user flooding limits */
 #define COOLDOWN_SEC 30
