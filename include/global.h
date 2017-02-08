@@ -42,7 +42,7 @@
 
 /* board settings */
 #define DEFAULT_NAME "Anonymous"
-#define THREAD_BUMP_LIMIT 350
+#define THREAD_BUMP_LIMIT 300
 #define MAX_ACTIVE_THREADS 150
 #define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15

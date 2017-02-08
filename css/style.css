@@ -296,3 +296,10 @@ a:visited { color: inherit; }
 .invalid { text-decoration: line-through; }
 .highlight { border-left: 5px solid #9793D7; background-color: #D5B2FE !important; }
 .popup { position: absolute; border: 1px solid lightgray; }
+.sage
+{
+	background-image:url("data:image/svg+xml;utf8, \
+		<svg xmlns='http://www.w3.org/2000/svg' version='1.1' height='20px' width='45px'> \
+			<text x='5' y='16' fill='#DDD' font-size='15' opacity='0.7'>SAGE</text> \
+		</svg>");
+}

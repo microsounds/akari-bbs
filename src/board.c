@@ -23,7 +23,11 @@
 		enquote_comment is corrupting strings at random
 		rewrite enquote_comment to get correct thread and link
 		search.cgi feature, search all and posts
-		if requested ID is not found in the thread, search through /api/12345 and display that
+		if requested ID is not found in the thread, search through /post/12345 and display that
+		push post numbers to user's localStorage so they can have (You)'s
+		push salted crypt(3) cookie to user to serve as deletion password
+		move cookie and tripcode routines to auth.c
+		add secure tripcodes with custom salt string
  */
 
 struct parameters {
@@ -50,9 +54,10 @@ const char *const global_template[] = {
 	"<!DOCTYPE html>"
 	"<html lang=\"en-US\">"
 	"<head>"
-		"<title>%s</title>" /* dynamically generate title in the future */
+		"<title>%s</title>"
 		"<meta charset=\"UTF-8\" />"
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+		"<meta name=\"theme-color\" content=\"#DC8B9A\" />"
 		"<link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/img/favicon.ico\" />"
 		"<link rel=\"stylesheet\" type=\"text/css\" href=\"/css/style.css\" />"
 		"<script src=\"/js/script.js\"></script>"
@@ -526,8 +531,6 @@ void display_statistics(struct parameters *params, long replies, long thread_id)
 	const char *p1 = (replies == 1) ? "y" : "ies"; /* plurals */
 	const char *p2 = (replies == 1) ? "" : "s";
 	fprintf(stdout, ins[0]);
-	if (replies > THREAD_BUMP_LIMIT)
-		fprintf(stdout, "Bump limit reached. ");
 	if (!replies)
 		fprintf(stdout, ins[2], ins[1], p1);
 	else if (mode == INDEX_MODE)
@@ -548,6 +551,8 @@ void display_statistics(struct parameters *params, long replies, long thread_id)
 		else
 			fprintf(stdout, ins[3], ins[1], replies, p1);
 	}
+	if (replies > THREAD_BUMP_LIMIT)
+		fprintf(stdout, " <i>Bump limit reached.</i>");
 	fprintf(stdout, ins[6]);
 }
 
@@ -567,11 +572,10 @@ void display_resource(struct resource *res, int mode, int offset)
 		enquote_comment(&res->arr[i].comment, id); /* reformat comment string */
 		const char *comment = format_comment(&res->arr[i].comment);
 		const char *op = (is_parent) ? " parent" : ""; /* opening post */
+		const char *sage = (res->arr[i].options & POST_SAGE) ? " sage" : ""; /* sage */
 		if (!is_parent) /* arrow marker wrapper */
 			fprintf(stdout, "<div><div class=\"navi marker\">&gt;&gt;</div>");
-		fprintf(stdout, "<div class=\"pContainer%s\" id=\"p%ld\">", op, id);
-		if (res->arr[i].options & POST_SAGE)
-			fprintf(stdout, "<span class=\"pSubject\">[sage]</span> ");
+		fprintf(stdout, "<div class=\"pContainer%s%s\" id=\"p%ld\">", op, sage, id);
 		if (res->arr[i].subject)
 			fprintf(stdout, "<span class=\"pSubject\">%s</span> ", res->arr[i].subject);
 		fprintf(stdout, "<span class=\"pName\">%s</span> ", name);
@@ -732,7 +736,8 @@ void thread_mode(sqlite3 *db, struct board *list, struct parameters *params)
 
 void archive_viewer(sqlite3 *db, struct board *list, struct parameters *params)
 {
-	/* display table of archived threads
+	/* specialized reimplementation of display_resource()
+	 * display table of archived threads
 	 * reformat fields as needed
 	 */
 	static const char *const column[] = {
@@ -951,8 +956,9 @@ int main(void)
 	};
 	fprintf(stdout, "Status: %s\n\n",
 		    (!response[params.mode]) ? "200 OK" : response[params.mode]);
-	/* head */
-	fprintf(stdout, global_template[0], generate_pagetitle(db, &params, &list));
+
+	if (params.mode != PEEK_MODE) /* headers */
+		fprintf(stdout, global_template[0], generate_pagetitle(db, &params, &list));
 	switch (params.mode)
 	{
 		case HOMEPAGE: homepage_mode(&list); break;
