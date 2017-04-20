@@ -46,7 +46,7 @@
 #define MAX_ACTIVE_THREADS 150
 #define MAX_REPLY_PREVIEW 5
 #define THREADS_PER_PAGE 15
-#define DAYS_TO_ARCHIVE 30
+#define DAYS_TO_ARCHIVE 90
 #define REDIRECT_SEC 1
 
 /* user flooding limits */
@@ -60,6 +60,7 @@
 #define OPTIONS_MAX_LENGTH 30
 #define SUBJECT_MAX_LENGTH 75
 #define COMMENT_MAX_LENGTH 2000
-#define INSERT_MAX_RETRIES 1000
+#define INSERT_MAX_RETRIES 10
+#define FETCH_MAX_RETRIES 50
 
 #endif

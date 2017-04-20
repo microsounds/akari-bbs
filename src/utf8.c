@@ -177,7 +177,7 @@ int utf8_sequence_length(const char c)
 	/* returns sequence size of current UTF-8 byte
 	 * if continuation byte, return 0
 	 */
-	static const char byte[] = { 0x00, 0x80, 0xC2, 0xE0, 0xF0 };
+	static const unsigned char byte[] = { 0x00, 0x80, 0xC2, 0xE0, 0xF0 };
 	static const int len[] = { 1, 0, 2, 3, 4 };
 	unsigned i;
 	for (i = 1; i < static_size(byte); i++)

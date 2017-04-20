@@ -28,6 +28,9 @@ CREATE TABLE banned_users (
  == NOT YET IMPLEMENTED ==
 
  */
+
+PRAGMA journal_mode=WAL; /* prevent busy DB errors during heavy usage */
+
 CREATE TABLE boards (
 	id        TEXT    PRIMARY KEY,
 	name      TEXT    NOT NULL,

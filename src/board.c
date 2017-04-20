@@ -19,9 +19,10 @@
 /*
 	todo:
 		rewrite enquote_comment to get correct thread and link
-
-		search.cgi feature, search all and posts
 		if requested ID is not found in the thread, search through /post/12345 and display that
+
+		push unique cookie to set up user authentication for moderators
+		search.cgi feature, search all and posts
 		push post numbers to user's localStorage so they can have (You)'s
 		push salted crypt(3) cookie to user to serve as deletion password
 		move cookie and tripcode routines to auth.c
@@ -571,6 +572,7 @@ void display_resource(struct resource *res, int mode, int offset)
 		const char *comment = format_comment(&res->arr[i].comment);
 		const char *op = (is_parent) ? " parent" : ""; /* opening post */
 		const char *sage = (res->arr[i].options & POST_SAGE) ? " sage" : ""; /* sage */
+
 		if (!is_parent) /* arrow marker wrapper */
 			fprintf(stdout, "<div><div class=\"navi marker\">&gt;&gt;</div>");
 		fprintf(stdout, "<div class=\"pContainer%s%s\" id=\"p%ld\">", op, sage, id);
@@ -932,17 +934,18 @@ int main(void)
 	srand(time(NULL));
 	int err;
 	sqlite3 *db;
-	fprintf(stdout, "Content-type: text/html\n");
 	if ((err = sqlite3_open_v2(DATABASE_LOC, &db, 1, NULL))) /* read-only mode */
 	{
-		fprintf(stdout, "<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
+		fprintf(stdout, "Cannot open database. (e%d: %s)", err, sqlite3_err[err]);
 		return 1;
 	}
-	struct board list; /* fetch list of valid boards */
-	db_board_fetch(db, &list);
+	struct board list = { 0 }; /* fetch list of valid boards */
+	unsigned retries = 0;
+	while (!db_board_fetch(db, &list) && retries++ < FETCH_MAX_RETRIES);
 	if (!list.count)
 	{
-		fprintf(stdout, "<h2>No available boards. Please add one.</h2>");
+		fprintf(stdout, "Server overloaded. "
+		                "Couldn't fetch boards after %d attempts.", FETCH_MAX_RETRIES);
 		return 1;
 	}
 	struct parameters params = get_params(db, getenv("QUERY_STRING"), &list);
@@ -952,6 +955,7 @@ int main(void)
 		[REDIRECT] = "301 Moved Permanently",
 		[NOT_FOUND] = "404 Not Found"
 	};
+	fprintf(stdout, "Content-type: text/html\n");
 	fprintf(stdout, "Status: %s\n\n",
 		    (!response[params.mode]) ? "200 OK" : response[params.mode]);
 
@@ -972,6 +976,7 @@ int main(void)
 			goto abort;
 	}
 
+#ifndef NDEBUG
 	/* debug */
 	fprintf(stdout, "<br/><br/>");
 	char *modes[] = {
@@ -981,6 +986,7 @@ int main(void)
 	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>active/archived: %ld/%ld get string: \"%s\"",
 		modes[params.mode], params.board_id, params.thread_id, params.page_no, params.active_threads,
 		params.archived_threads, getenv("QUERY_STRING"));
+#endif
 
 	/* footer
 	 * version info footer with page generation time
