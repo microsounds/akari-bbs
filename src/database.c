@@ -342,13 +342,15 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 	if (cm->parent_id == cm->id) /* new thread creation */
 	{
 		cmd[0] = sql_generate(sql[0], cm->board_id, cm->id, cm->time, 0);
-		err = db_transaction(db, cmd[0]);
+		if ((err = db_transaction(db, cmd[0])))
+			goto end;
 	}
 	cmd[1] = sql_generate(sql[1],
 		cm->board_id, cm->parent_id, cm->id, cm->time,
 		cm->options, cm->user_priv, cm->del_pass, cm->ip, cm->comment
 	);
-	err = db_transaction(db, cmd[1]); /* mandatory fields */
+	if ((err = db_transaction(db, cmd[1]))) /* mandatory fields */
+		goto end;
 	const char *const field[] = { cm->subject, cm->name, cm->trip };
 	unsigned i;
 	for (i = 0; i < static_size(field); i++) /* optional fields */
@@ -359,7 +361,7 @@ int db_post_insert(sqlite3 *db, struct post *cm)
 			err = db_transaction(db, cmd[i+2]);
 		}
 	}
-	for (i = 0; i < static_size(sql); i++)
+	end: for (i = 0; i < static_size(sql); i++)
 		free((!cmd[i]) ? NULL : cmd[i]);
 	return err;
 }

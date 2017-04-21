@@ -28,7 +28,7 @@ then
 	echo "Permissions have been reset."
 else
 	mkdir -p $DBDIR
-	cat $DBSCHEMA | sqlite3 $DBDIR/$DBFILE
+	cat $DBSCHEMA | sqlite3 $DBDIR/$DBFILE > /dev/null
 	echo "Database initialized at '$DBPATH'."
 fi
 

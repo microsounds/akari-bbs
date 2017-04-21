@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
+#include <unistd.h>
 #include <sqlite3.h>
 #include "global.h"
 #include "database.h"
@@ -211,9 +212,10 @@ int main(void)
 		if (spam_filter(cm.comment)) /* spammy behavior */
 			abort_now("<h2>This post is spam. Please rewrite it.</h2>");
 
-		int attempts = 0; /* reattempt insert if database is busy */
-		retry: if (attempts++ > 0)
+		int attempts = 0;
+		reassign: if (attempts++ > 0) /* reattempt insert operation */
 		{
+			sleep(1);
 			cm.time = time(NULL); /* reassign post id's */
 			cm.id = db_total_posts(db, cm.board_id, -1) + 1;
 			if (mode == THREAD_MODE)
@@ -233,8 +235,8 @@ int main(void)
 				fprintf(stdout, "<h2>Thread No.%ld created!</h2>", cm.id);
 			thread_redirect(cm.board_id, cm.parent_id, cm.id); /* redirect */
 		}
-		else if (err == SQLITE_BUSY && attempts < INSERT_MAX_RETRIES)
-			goto retry;
+		else if (attempts < INSERT_MAX_RETRIES) /* post number collision? */
+			goto reassign;
 		else
 			abort_now("<h2>Post failed. (e%d: %s)</h2>", err, sqlite3_err[err]);
 		query_free(&query);

@@ -29,7 +29,7 @@ CREATE TABLE banned_users (
 
  */
 
-PRAGMA journal_mode=WAL; /* prevent busy DB errors during heavy usage */
+PRAGMA journal_mode=WAL; /* prevent busy DB errors */
 
 CREATE TABLE boards (
 	id        TEXT    PRIMARY KEY,
@@ -42,13 +42,15 @@ CREATE TABLE active_threads (
 	board_id  TEXT    NOT NULL,
 	post_id   INTEGER NOT NULL,
 	last_bump INTEGER NOT NULL,
-	status    INTEGER NOT NULL  /* thread_status flags */
+	status    INTEGER NOT NULL,  /* thread_status flags */
+	PRIMARY KEY (board_id, post_id)
 );
 
 CREATE TABLE archived_threads (
 	board_id  TEXT    NOT NULL,
 	post_id   INTEGER NOT NULL,
-	expiry    INTEGER NOT NULL
+	expiry    INTEGER NOT NULL,
+	PRIMARY KEY (board_id, post_id)
 );
 
 CREATE TABLE posts (
@@ -63,7 +65,8 @@ CREATE TABLE posts (
 	name      TEXT,
 	trip      TEXT,
 	subject   TEXT,
-	comment   TEXT    NOT NULL
+	comment   TEXT    NOT NULL,
+	PRIMARY KEY (board_id, id)
 );
 
 INSERT INTO boards VALUES

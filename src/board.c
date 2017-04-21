@@ -942,10 +942,17 @@ int main(void)
 	struct board list = { 0 }; /* fetch list of valid boards */
 	unsigned retries = 0;
 	while (!db_board_fetch(db, &list) && retries++ < FETCH_MAX_RETRIES);
+		err = sqlite3_extended_errcode(db);
 	if (!list.count)
 	{
-		fprintf(stdout, "Server overloaded. "
-		                "Couldn't fetch boards after %d attempts.", FETCH_MAX_RETRIES);
+		if (err == SQLITE_ERROR)
+			fprintf(stdout, "Nothing to do. Please add at least 1 board.");
+		else if (err == SQLITE_BUSY)
+			fprintf(stdout, "Server overloaded.\n"
+			                "Couldn't fetch boards after %d attempts.", FETCH_MAX_RETRIES);
+		else /* generic error */
+			fprintf(stdout, "%s. %s.", sqlite3_errstr(err), sqlite3_errmsg(db));
+		fprintf(stdout, " (e%d: %s)\n", err, sqlite3_err[err]);
 		return 1;
 	}
 	struct parameters params = get_params(db, getenv("QUERY_STRING"), &list);
