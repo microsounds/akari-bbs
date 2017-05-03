@@ -56,7 +56,7 @@ static void abort_now(const char *fmt, ...)
 	va_start(args, fmt);
 	vfprintf(stdout, fmt, args);
 	va_end(args);
-	const char *refer = getenv("HTTP_REFERER");
+	const char *refer = getenv_s("HTTP_REFERER");
 	fprintf(stdout, html[2], (!refer) ? "/" : refer);
 	fprintf(stdout, html[1]); /* footer */
 	exit(1);
@@ -75,12 +75,13 @@ int main(void)
 		abort_now("<h2>Cannot open database. (e%d: %s)</h2>", err, sqlite3_err[err]);
 
 	query_t query = { 0 }; /* obtain POST options */
-	const char *request = getenv("REQUEST_METHOD");
+	const char *request = getenv_s("REQUEST_METHOD");
 	if (!request)
 		abort_now("<h2>Not a valid CGI environment.</h2>");
 	if (!strcmp(request, "POST"))
 	{
-		unsigned POST_len = atoi(getenv("CONTENT_LENGTH"));
+		const char *size = getenv_s("CONTENT_LENGTH");
+		unsigned POST_len = (!size) ? 0 : atoi(size);
 		if (POST_len > 0 && POST_len < POST_MAX_PAYLOAD)
 		{
 			char *POST_data = (char *) malloc(sizeof(char) * POST_len + 1);
@@ -104,7 +105,7 @@ int main(void)
 		struct post cm = { 0 }; /* compose a new post */
 
 		unsigned timer;
-		cm.ip = getenv("REMOTE_ADDR"); /* ip address */
+		cm.ip = getenv_s("REMOTE_ADDR"); /* ip address */
 		if ((timer = db_cooldown_timer(db, cm.ip))) /* post cooldown */
 			abort_now("<h2>Please wait %s before posting again.</h2>", time_human(timer));
 		cm.board_id = query_search(&query, "board"); /* get board_id */

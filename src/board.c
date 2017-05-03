@@ -29,17 +29,21 @@
 		add secure tripcodes with custom salt string
  */
 
+/* state */
+
+enum op_mode {
+	HOMEPAGE,
+	INDEX_MODE,
+	THREAD_MODE,
+	ARCHIVE_MODE,
+	ARCHIVE_VIEWER,
+	PEEK_MODE,
+	NOT_FOUND,
+	REDIRECT
+};
+
 struct parameters {
-	enum {
-		HOMEPAGE,
-		INDEX_MODE,
-		THREAD_MODE,
-		ARCHIVE_MODE,
-		ARCHIVE_VIEWER,
-		PEEK_MODE,
-		NOT_FOUND,
-		REDIRECT
-	} mode;
+	enum op_mode mode;
 	char *board_id;
 	long thread_id;
 	long parent_id; /* redirection */
@@ -941,7 +945,7 @@ int main(void)
 	}
 	struct board list = { 0 }; /* fetch list of valid boards */
 	unsigned retries = 0;
-	while (!db_board_fetch(db, &list) && retries++ < FETCH_MAX_RETRIES);
+	while (!db_board_fetch(db, &list) && retries++ < FETCH_MAX_RETRIES)
 		err = sqlite3_extended_errcode(db);
 	if (!list.count)
 	{
@@ -955,7 +959,7 @@ int main(void)
 		fprintf(stdout, " (e%d: %s)\n", err, sqlite3_err[err]);
 		return 1;
 	}
-	struct parameters params = get_params(db, getenv("QUERY_STRING"), &list);
+	struct parameters params = get_params(db, getenv_s("QUERY_STRING"), &list);
 
 	/* HTTP response */
 	static const char *const response[] = {
@@ -976,7 +980,7 @@ int main(void)
 		case ARCHIVE_MODE: thread_mode(db, &list, &params); break;
 		case ARCHIVE_VIEWER: archive_viewer(db, &list, &params); break;
 		case PEEK_MODE: peek_mode(db, &params); goto abort;
-		case NOT_FOUND: not_found(getenv("HTTP_REFERER")); goto abort;
+		case NOT_FOUND: not_found(getenv_s("HTTP_REFERER")); goto abort;
 		case REDIRECT:
 			fprintf(stdout, "<i>Redirecting to Thread No.%ld...</i>", params.parent_id);
 			thread_redirect(params.board_id, params.parent_id, params.thread_id);
@@ -992,7 +996,7 @@ int main(void)
 	};
 	fprintf(stdout, "[debug] mode: %s board: %s thread: %ld page: %ld<br/>active/archived: %ld/%ld get string: \"%s\"",
 		modes[params.mode], params.board_id, params.thread_id, params.page_no, params.active_threads,
-		params.archived_threads, getenv("QUERY_STRING"));
+		params.archived_threads, getenv_s("QUERY_STRING"));
 #endif
 
 	/* footer

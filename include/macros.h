@@ -23,4 +23,9 @@
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
+/* since lighttpd 1.4.45, getenv() sometimes returns an empty string
+ * instead of NULL to indicate a missing environment variable
+ */
+#define getenv_s(x) ((!getenv(x) || !*getenv(x)) ? NULL : getenv(x))
+
 #endif

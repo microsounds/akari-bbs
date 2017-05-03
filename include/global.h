@@ -54,7 +54,7 @@
 #define IDENTICAL_POST_SEC 300
 #define MAX_THREADS_PER_IP 5
 
-/* field submission limits */
+/* software limits */
 #define POST_MAX_PAYLOAD 10000
 #define NAME_MAX_LENGTH 75
 #define OPTIONS_MAX_LENGTH 30

@@ -111,8 +111,8 @@ char *strins(char **loc, size_t pos, const char *src, size_t n)
 
 char *strdup(const char *str)
 {
-	/* duplicate string */
-	if (!str)
+	/* duplicates string */
+	if (!str || !*str)
 		return NULL;
 	long len = strlen(str);
 	char *dup = (char *) malloc(sizeof(char) * len + 1);
@@ -355,10 +355,8 @@ char *tripcode_hash(const char *pass)
 	 * overwritten on every call and is NOT THREAD SAFE
 	 */
 	if (!pass) return NULL;
-	static const char *secret = "H.";
 	const char *p = (strlen(pass) < 3) ? NULL : pass; /* too short? */
-	char salt[5]; /* create salt */
-	sprintf(salt, "%c%c%s", (!p) ? ' ' : p[1], (!p) ? ' ' : p[2], secret);
+	char salt[5] = { !p ? ' ' : p[1], !p ? ' ' : p[2], 'H', '.', '\0' };
 	char *s = salt;
 	do /* sanitize salt */
 	{
@@ -371,6 +369,5 @@ char *tripcode_hash(const char *pass)
 	} while (*++s);
 	char *trip = crypt(pass, salt);
 	memmove(&trip[1], &trip[3], strlen(&trip[3]) + 1);
-	trip[0] = '!';
-	return trip;
+	return *trip = '!', trip;
 }
